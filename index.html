@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Absen GPS</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f3f4f6;
+        }
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            text-align: center;
+            max-width: 350px;
+            width: 100%;
+        }
+        h2 {
+            margin-top: 0;
+            color: #333;
+        }
+        button {
+            background-color: #2563eb;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 15px;
+        }
+        button:active {
+            background-color: #1d4ed8;
+        }
+        button:disabled {
+            background-color: #9ca3af;
+            cursor: not-allowed;
+        }
+        #status {
+            margin-top: 15px;
+            font-size: 14px;
+            color: #4b5563;
+            line-height: 1.5;
+        }
+        .success { color: #16a34a !important; font-weight: bold; }
+        .error { color: #dc2626 !important; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <h2>Absensi Karyawan</h2>
+        <p>Klik tombol di bawah untuk absen. Anda harus berada di radius maksimal 2 meter dari titik lokasi.</p>
+        
+        <button id="btnAbsen" onclick="prosesAbsen()">Absen Sekarang</button>
+        
+        <div id="status">Status: Belum absen</div>
+    </div>
+
+    <script>
+        // === PENGATURAN LOKASI KANTOR/SEKOLAH ===
+        // Ganti titik koordinat ini dengan lokasi target Anda (bisa cek di Google Maps)
+        const TARGET_LAT = -7.3871891; // Contoh Latitude 
+        const TARGET_LNG = 109.6881775; // Contoh Longitude
+        const MAX_RADIUS = 2; // Maksimal jarak dalam meter
+
+        const statusDiv = document.getElementById('status');
+        const btnAbsen = document.getElementById('btnAbsen');
+
+        // Fungsi untuk menghitung jarak antara 2 koordinat dalam satuan METER (Rumus Haversine)
+        function hitungJarak(lat1, lon1, lat2, lon2) {
+            const R = 6371e3; // Radius bumi dalam meter
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLon/2) * Math.sin(dLon/2);
+            
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c; // Hasil dalam meter
+        }
+
+        function prosesAbsen() {
+            if (!navigator.geolocation) {
+                statusDiv.innerHTML = "<span class='error'>Error: Browser Anda tidak mendukung GPS.</span>";
+                return;
+            }
+
+            statusDiv.innerHTML = "Mencari lokasi Anda, mohon tunggu...";
+            btnAbsen.disabled = true;
+
+            // Meminta lokasi pengguna dengan akurasi tinggi
+            navigator.geolocation.getCurrentPosition(
+                function(position) {
+                    const userLat = position.coords.latitude;
+                    const userLng = position.coords.longitude;
+                    const akurasi = position.coords.accuracy;
+
+                    // Hitung jarak user ke lokasi target
+                    const jarak = hitungJarak(TARGET_LAT, TARGET_LNG, userLat, userLng);
+                    
+                    if (jarak <= MAX_RADIUS) {
+                        statusDiv.innerHTML = `<span class='success'>Berhasil Absen!</span><br>Jarak Anda: ${jarak.toFixed(2)} meter.<br>Akurasi GPS: ${akurasi.toFixed(2)} meter.`;
+                    } else {
+                        statusDiv.innerHTML = `<span class='error'>Gagal Absen.</span><br>Jarak Anda ${jarak.toFixed(2)} meter dari target (Maks: ${MAX_RADIUS}m).<br>Akurasi GPS: ${akurasi.toFixed(2)} meter.`;
+                    }
+                    btnAbsen.disabled = false;
+                },
+                function(error) {
+                    btnAbsen.disabled = false;
+                    switch(error.code) {
+                        case error.PERMISSION_DENIED:
+                            statusDiv.innerHTML = "<span class='error'>Izin lokasi ditolak. Aktifkan GPS dan izinkan browser mengakses lokasi.</span>";
+                            break;
+                        case error.POSITION_UNAVAILABLE:
+                            statusDiv.innerHTML = "<span class='error'>Informasi lokasi tidak tersedia.</span>";
+                            break;
+                        case error.TIMEOUT:
+                            statusDiv.innerHTML = "<span class='error'>Waktu permintaan lokasi habis. Coba lagi.</span>";
+                            break;
+                        default:
+                            statusDiv.innerHTML = "<span class='error'>Terjadi kesalahan yang tidak diketahui.</span>";
+                            break;
+                    }
+                },
+                {
+                    enableHighAccuracy: true, // Memaksa penggunaan GPS asli, bukan sekadar WiFi/Network
+                    timeout: 10000,
+                    maximumAge: 0
+                }
+            );
+        }
+    </script>
+</body>
+</html>
