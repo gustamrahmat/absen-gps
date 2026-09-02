@@ -4,15 +4,19 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Absen GPS</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
+        * { box-sizing: border-box; }
         body {
             font-family: Arial, sans-serif;
             display: flex;
             justify-content: center;
             align-items: center;
-            height: 100vh;
+            min-height: 100vh;
             margin: 0;
             background-color: #f3f4f6;
+            padding: 20px 0;
         }
         .card {
             background: white;
@@ -20,13 +24,41 @@
             border-radius: 10px;
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
             text-align: center;
-            max-width: 350px;
-            width: 100%;
+            max-width: 400px;
+            width: 90%;
         }
         h2 {
             margin-top: 0;
             color: #333;
         }
+        #map {
+            width: 100%;
+            height: 250px;
+            border-radius: 8px;
+            margin-top: 12px;
+            background: #e5e7eb;
+        }
+        .legend {
+            display: flex;
+            justify-content: center;
+            gap: 16px;
+            font-size: 12px;
+            color: #4b5563;
+            margin-top: 8px;
+        }
+        .legend span {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        .dot-target { background: #dc2626; }
+        .dot-user { background: #2563eb; }
         button {
             background-color: #2563eb;
             color: white;
@@ -51,6 +83,11 @@
             color: #4b5563;
             line-height: 1.5;
         }
+        #liveJarak {
+            margin-top: 8px;
+            font-size: 13px;
+            color: #374151;
+        }
         .success { color: #16a34a !important; font-weight: bold; }
         .error { color: #dc2626 !important; font-weight: bold; }
     </style>
@@ -59,64 +96,130 @@
 
     <div class="card">
         <h2>Absensi</h2>
-        <p>Klik tombol di bawah ini untuk absen. Anda harus berada di radius maksimal 2 meter dari titik lokasi.</p>
-        
-        <button id="btnAbsen" onclick="prosesAbsen()">Absen Sekarang</button>
-        
+        <p>Peta di bawah menampilkan posisi Anda secara live. Anda harus berada di radius maksimal 2 meter dari titik lokasi untuk bisa absen.</p>
+
+        <div id="map"></div>
+        <div class="legend">
+            <span><span class="dot dot-target"></span> Titik Absen</span>
+            <span><span class="dot dot-user"></span> Posisi Anda</span>
+        </div>
+        <div id="liveJarak">Jarak: -</div>
+
+        <button id="btnAbsen" onclick="prosesAbsen()" disabled>Mencari lokasi...</button>
+
         <div id="status">Status: Belum absen</div>
     </div>
 
     <script>
         // === PENGATURAN LOKASI KANTOR/SEKOLAH ===
         // Ganti titik koordinat ini dengan lokasi target Anda (bisa cek di Google Maps)
-        const TARGET_LAT = -7.5051911; // Contoh Latitude 
+        const TARGET_LAT = -7.5051911; // Contoh Latitude
         const TARGET_LNG = 110.2254066; // Contoh Longitude
         const MAX_RADIUS = 2; // Maksimal jarak dalam meter
 
         const statusDiv = document.getElementById('status');
+        const liveJarakDiv = document.getElementById('liveJarak');
         const btnAbsen = document.getElementById('btnAbsen');
+
+        let userLat = null;
+        let userLng = null;
+        let watchId = null;
+
+        // === SETUP PETA (Leaflet + OpenStreetMap, gratis tanpa API key) ===
+        const map = L.map('map').setView([TARGET_LAT, TARGET_LNG], 18);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
+
+        // Marker titik target (lokasi absen) - warna merah
+        const targetIcon = L.divIcon({
+            className: '',
+            html: '<div style="width:16px;height:16px;background:#dc2626;border:2px solid white;border-radius:50%;box-shadow:0 0 4px rgba(0,0,0,0.4);"></div>',
+            iconSize: [16, 16],
+            iconAnchor: [8, 8]
+        });
+        L.marker([TARGET_LAT, TARGET_LNG], { icon: targetIcon }).addTo(map)
+            .bindPopup('Titik Absen');
+
+        // Lingkaran radius target (radius asli 2m divisualisasikan)
+        const radiusCircle = L.circle([TARGET_LAT, TARGET_LNG], {
+            radius: MAX_RADIUS,
+            color: '#dc2626',
+            fillColor: '#dc2626',
+            fillOpacity: 0.15,
+            weight: 1
+        }).addTo(map);
+
+        // Marker posisi user - warna biru, dibuat setelah lokasi didapat
+        const userIcon = L.divIcon({
+            className: '',
+            html: '<div style="width:16px;height:16px;background:#2563eb;border:2px solid white;border-radius:50%;box-shadow:0 0 4px rgba(0,0,0,0.4);"></div>',
+            iconSize: [16, 16],
+            iconAnchor: [8, 8]
+        });
+        let userMarker = null;
+        let userAccCircle = null;
 
         // Fungsi untuk menghitung jarak antara 2 koordinat dalam satuan METER (Rumus Haversine)
         function hitungJarak(lat1, lon1, lat2, lon2) {
             const R = 6371e3; // Radius bumi dalam meter
             const dLat = (lat2 - lat1) * Math.PI / 180;
             const dLon = (lon2 - lon1) * Math.PI / 180;
-            
+
             const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
                       Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
                       Math.sin(dLon/2) * Math.sin(dLon/2);
-            
+
             const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
             return R * c; // Hasil dalam meter
         }
 
-        function prosesAbsen() {
+        // Mulai pantau lokasi secara live (live tracking) begitu halaman dibuka
+        function mulaiLiveTracking() {
             if (!navigator.geolocation) {
                 statusDiv.innerHTML = "<span class='error'>Error: Browser Anda tidak mendukung GPS.</span>";
                 return;
             }
 
-            statusDiv.innerHTML = "Mencari lokasi Anda, mohon tunggu...";
-            btnAbsen.disabled = true;
-
-            // Meminta lokasi pengguna dengan akurasi tinggi
-            navigator.geolocation.getCurrentPosition(
+            watchId = navigator.geolocation.watchPosition(
                 function(position) {
-                    const userLat = position.coords.latitude;
-                    const userLng = position.coords.longitude;
+                    userLat = position.coords.latitude;
+                    userLng = position.coords.longitude;
                     const akurasi = position.coords.accuracy;
 
-                    // Hitung jarak user ke lokasi target
-                    const jarak = hitungJarak(TARGET_LAT, TARGET_LNG, userLat, userLng);
-                    
-                    if (jarak <= MAX_RADIUS) {
-                        statusDiv.innerHTML = `<span class='success'>Berhasil Absen!</span><br>Jarak Anda: ${jarak.toFixed(2)} meter.<br>Akurasi GPS: ${akurasi.toFixed(2)} meter.`;
+                    // Update / buat marker posisi user di peta
+                    if (!userMarker) {
+                        userMarker = L.marker([userLat, userLng], { icon: userIcon }).addTo(map)
+                            .bindPopup('Posisi Anda');
+                        // Tampilkan kedua titik (target & user) dalam satu tampilan
+                        map.fitBounds([[TARGET_LAT, TARGET_LNG], [userLat, userLng]], { padding: [30, 30] });
                     } else {
-                        statusDiv.innerHTML = `<span class='error'>Gagal Absen.</span><br>Jarak Anda ${jarak.toFixed(2)} meter dari target (Maks: ${MAX_RADIUS}m).<br>Akurasi GPS: ${akurasi.toFixed(2)} meter.`;
+                        userMarker.setLatLng([userLat, userLng]);
                     }
+
+                    if (!userAccCircle) {
+                        userAccCircle = L.circle([userLat, userLng], {
+                            radius: akurasi,
+                            color: '#2563eb',
+                            fillColor: '#2563eb',
+                            fillOpacity: 0.08,
+                            weight: 1
+                        }).addTo(map);
+                    } else {
+                        userAccCircle.setLatLng([userLat, userLng]);
+                        userAccCircle.setRadius(akurasi);
+                    }
+
+                    const jarak = hitungJarak(TARGET_LAT, TARGET_LNG, userLat, userLng);
+                    liveJarakDiv.innerHTML = `Jarak Anda ke titik absen: <b>${jarak.toFixed(2)} meter</b> (akurasi GPS: ${akurasi.toFixed(1)}m)`;
+
                     btnAbsen.disabled = false;
+                    btnAbsen.textContent = 'Absen Sekarang';
                 },
                 function(error) {
+                    btnAbsen.textContent = 'Absen Sekarang';
                     btnAbsen.disabled = false;
                     switch(error.code) {
                         case error.PERMISSION_DENIED:
@@ -135,11 +238,29 @@
                 },
                 {
                     enableHighAccuracy: true, // Memaksa penggunaan GPS asli, bukan sekadar WiFi/Network
-                    timeout: 10000,
+                    timeout: 15000,
                     maximumAge: 0
                 }
             );
         }
+
+        function prosesAbsen() {
+            if (userLat === null || userLng === null) {
+                statusDiv.innerHTML = "<span class='error'>Lokasi belum ditemukan, mohon tunggu sebentar.</span>";
+                return;
+            }
+
+            const jarak = hitungJarak(TARGET_LAT, TARGET_LNG, userLat, userLng);
+
+            if (jarak <= MAX_RADIUS) {
+                statusDiv.innerHTML = `<span class='success'>Berhasil Absen!</span><br>Jarak Anda: ${jarak.toFixed(2)} meter.`;
+            } else {
+                statusDiv.innerHTML = `<span class='error'>Gagal Absen.</span><br>Jarak Anda ${jarak.toFixed(2)} meter dari target (Maks: ${MAX_RADIUS}m).`;
+            }
+        }
+
+        // Jalankan live tracking begitu halaman dimuat
+        mulaiLiveTracking();
     </script>
 </body>
 </html>
