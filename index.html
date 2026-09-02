@@ -3,51 +3,32 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Absen GPS - Notif Atas Map</title>
+    <title>Absen GPS - Pop Up Notif</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
         * { box-sizing: border-box; }
         body {
-            font-family: Arial, sans-serif;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            margin: 0;
-            background-color: #f3f4f6;
-            padding: 20px 0;
+            font-family: Arial, sans-serif; display: flex; justify-content: center;
+            align-items: center; min-height: 100vh; margin: 0; background-color: #f3f4f6; padding: 20px 0;
         }
         .card {
-            background: white;
-            padding: 20px;
-            border-radius: 10px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            text-align: center;
-            max-width: 400px;
-            width: 90%;
+            background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            text-align: center; max-width: 400px; width: 90%;
         }
         h2 { margin-top: 0; color: #333; }
-        #zoneNotif {
-            margin: 12px 0; /* Dipindah ke atas map */
-            font-size: 13px;
-            font-weight: bold;
-            padding: 8px 10px;
-            border-radius: 6px;
-            display: none;
+        
+        /* Gaya CSS untuk Pop-Up melayang di atas */
+        #zonePopup {
+            position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+            z-index: 10000; padding: 12px 24px; border-radius: 30px; font-size: 14px; font-weight: bold;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2); transition: opacity 0.3s ease; display: none; width: max-content;
         }
-        #zoneNotif.in-zone {
-            display: block; background: #dcfce7; color: #16a34a; border: 1px solid #16a34a;
-        }
-        #zoneNotif.out-zone {
-            display: block; background: #fee2e2; color: #dc2626; border: 1px solid #dc2626;
-        }
-        #map {
-            width: 100%; height: 250px; border-radius: 8px; background: #e5e7eb;
-        }
-        .legend {
-            display: flex; justify-content: center; gap: 16px; font-size: 12px; color: #4b5563; margin-top: 8px;
-        }
+        #zonePopup.in-zone { background-color: #dcfce7; color: #16a34a; border: 1px solid #16a34a; }
+        #zonePopup.out-zone { background-color: #fee2e2; color: #dc2626; border: 1px solid #dc2626; }
+
+        #map { width: 100%; height: 250px; border-radius: 8px; margin-top: 12px; background: #e5e7eb; }
+        .legend { display: flex; justify-content: center; gap: 16px; font-size: 12px; color: #4b5563; margin-top: 8px; }
         .legend span { display: inline-flex; align-items: center; gap: 4px; }
         .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
         .dot-target { background: #dc2626; }
@@ -66,14 +47,14 @@
 </head>
 <body>
 
+    <!-- Container Pop-Up (melayang) -->
+    <div id="zonePopup"></div>
+
     <div class="card">
         <h2>Absensi</h2>
         <p>Peta di bawah menampilkan posisi Anda secara live. Anda harus berada di radius maksimal 2 meter dari titik lokasi untuk bisa absen.</p>
 
-        <!-- Notifikasi dipindah ke atas map -->
-        <div id="zoneNotif"></div>
         <div id="map"></div>
-        
         <div class="legend">
             <span><span class="dot dot-target"></span> Titik Absen</span>
             <span><span class="dot dot-user"></span> Posisi Anda</span>
@@ -94,33 +75,37 @@
 
         const statusDiv = document.getElementById('status');
         const liveJarakDiv = document.getElementById('liveJarak');
-        const zoneNotifDiv = document.getElementById('zoneNotif');
+        const zonePopup = document.getElementById('zonePopup');
         const btnAbsen = document.getElementById('btnAbsen');
 
-        let userLat = null; let userLng = null; let watchId = null; let sedangDiDalamZona = null;
+        let userLat = null; let userLng = null; let watchId = null; let sedangDiDalamZona = null; let popupTimeout = null;
+
+        // Fungsi memunculkan pop-up melayang
+        function tampilkanPopup(pesan, tipeClass) {
+            zonePopup.textContent = pesan;
+            zonePopup.className = tipeClass;
+            zonePopup.style.display = 'block';
+            
+            // Sembunyikan otomatis setelah 5 detik
+            clearTimeout(popupTimeout);
+            popupTimeout = setTimeout(() => {
+                zonePopup.style.display = 'none';
+            }, 5000);
+        }
 
         if ('Notification' in window && Notification.permission === 'default') {
             Notification.requestPermission();
-        }
-        function kirimNotifikasiSistem(judul, isi) {
-            if ('Notification' in window && Notification.permission === 'granted') {
-                new Notification(judul, { body: isi, icon: '' });
-            }
         }
 
         const map = L.map('map').setView([TARGET_LAT, TARGET_LNG], 18);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
 
-        const targetIcon = L.divIcon({
-            className: '', html: '<div style="width:16px;height:16px;background:#dc2626;border:2px solid white;border-radius:50%;box-shadow:0 0 4px rgba(0,0,0,0.4);"></div>', iconSize: [16, 16], iconAnchor: [8, 8]
-        });
+        const targetIcon = L.divIcon({ className: '', html: '<div style="width:16px;height:16px;background:#dc2626;border:2px solid white;border-radius:50%;box-shadow:0 0 4px rgba(0,0,0,0.4);"></div>', iconSize: [16, 16], iconAnchor: [8, 8] });
         L.marker([TARGET_LAT, TARGET_LNG], { icon: targetIcon }).addTo(map).bindPopup('Titik Absen');
         L.circle([TARGET_LAT, TARGET_LNG], { radius: MAX_RADIUS, color: '#dc2626', fillColor: '#dc2626', fillOpacity: 0.15, weight: 1 }).addTo(map);
         L.circle([TARGET_LAT, TARGET_LNG], { radius: ZONE_RADIUS, color: '#f59e0b', fillColor: '#f59e0b', fillOpacity: 0.08, weight: 1, dashArray: '6, 6' }).addTo(map).bindPopup('Zona Absen (' + ZONE_RADIUS + 'm)');
 
-        const userIcon = L.divIcon({
-            className: '', html: '<div style="width:16px;height:16px;background:#2563eb;border:2px solid white;border-radius:50%;box-shadow:0 0 4px rgba(0,0,0,0.4);"></div>', iconSize: [16, 16], iconAnchor: [8, 8]
-        });
+        const userIcon = L.divIcon({ className: '', html: '<div style="width:16px;height:16px;background:#2563eb;border:2px solid white;border-radius:50%;box-shadow:0 0 4px rgba(0,0,0,0.4);"></div>', iconSize: [16, 16], iconAnchor: [8, 8] });
         let userMarker = null; let userAccCircle = null; let posSebelumnya = null; let animasiFrameId = null;
 
         function animasikanMarker(dariLat, dariLng, keLat, keLng, durasiMs) {
@@ -168,18 +153,18 @@
                     liveJarakDiv.innerHTML = `Jarak Anda ke titik absen: <b>${jarak.toFixed(2)} meter</b> (akurasi GPS: ${akurasi.toFixed(1)}m)`;
 
                     const diDalamZonaSekarang = jarak <= ZONE_RADIUS;
+                    
                     if (sedangDiDalamZona === null) {
                         sedangDiDalamZona = diDalamZonaSekarang;
-                        zoneNotifDiv.className = diDalamZonaSekarang ? 'in-zone' : 'out-zone';
-                        zoneNotifDiv.textContent = diDalamZonaSekarang ? 'Kamu berada di dalam zona absen' : 'Kamu berada di luar zona absen';
+                        // Menampilkan pop-up saat awal loading peta
+                        if (diDalamZonaSekarang) { tampilkanPopup('Kamu berada di dalam zona absen', 'in-zone'); } 
+                        else { tampilkanPopup('Kamu berada di luar zona absen', 'out-zone'); }
                     } else if (diDalamZonaSekarang && !sedangDiDalamZona) {
                         sedangDiDalamZona = true;
-                        zoneNotifDiv.className = 'in-zone'; zoneNotifDiv.textContent = 'Kamu berada di dalam zona absen';
-                        kirimNotifikasiSistem('Absen GPS', 'Kamu berada di dalam zona absen');
+                        tampilkanPopup('Kamu memasuki zona absen', 'in-zone');
                     } else if (!diDalamZonaSekarang && sedangDiDalamZona) {
                         sedangDiDalamZona = false;
-                        zoneNotifDiv.className = 'out-zone'; zoneNotifDiv.textContent = 'Kamu keluar dari zona absen';
-                        kirimNotifikasiSistem('Absen GPS', 'Kamu keluar dari zona absen');
+                        tampilkanPopup('Kamu keluar dari zona absen', 'out-zone');
                     }
 
                     // VALIDASI AKURASI MAKSIMAL 5 METER
