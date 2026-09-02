@@ -6,6 +6,9 @@
     <title>Absen GPS</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- Firebase SDK (compat, supaya bisa langsung dipakai via <script> tag tanpa build tool) -->
+    <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
     <style>
         * { box-sizing: border-box; }
         body {
@@ -191,9 +194,59 @@
             margin-top: 10px;
             transform: scaleX(-1);
         }
+
+        /* Overlay input nama karyawan sebelum mulai tracking */
+        #namaOverlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 3000;
+        }
+        #namaOverlay .box {
+            background: white;
+            padding: 24px;
+            border-radius: 10px;
+            max-width: 320px;
+            width: 90%;
+            text-align: center;
+        }
+        #namaOverlay input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 15px;
+            margin-top: 12px;
+            box-sizing: border-box;
+        }
+        #namaOverlay p.hint {
+            font-size: 12px;
+            color: #9ca3af;
+            margin-top: 8px;
+        }
+        #koneksiStatus {
+            font-size: 11px;
+            margin-top: 6px;
+            color: #9ca3af;
+        }
+        #koneksiStatus.terputus { color: #dc2626; font-weight: bold; }
     </style>
 </head>
 <body>
+
+    <!-- ==== OVERLAY: ISI NAMA SEBELUM MULAI ==== -->
+    <div id="namaOverlay">
+        <div class="box">
+            <h2 style="margin-top:0;">Absen GPS</h2>
+            <p>Masukkan nama Anda untuk memulai absensi.</p>
+            <input type="text" id="inputNama" placeholder="Nama lengkap" />
+            <button onclick="mulaiSesi()" style="margin-top:14px;">Mulai</button>
+            <p class="hint">Posisi Anda akan terlihat oleh admin secara live selama sesi ini berlangsung.</p>
+        </div>
+    </div>
 
     <div id="toast"></div>
 
@@ -216,6 +269,7 @@
         <button id="btnAbsen" onclick="prosesAbsen()" disabled>Mencari lokasi...</button>
 
         <div id="status">Status: Belum absen</div>
+        <div id="koneksiStatus">Menghubungkan ke server...</div>
     </div>
 
     <!-- ==== TAMPILAN KAMERA SELFIE ==== -->
@@ -247,10 +301,88 @@
     </div>
 
     <script>
+        // === KONFIGURASI FIREBASE ===
+        // Ganti seluruh objek ini dengan config dari project Firebase Anda sendiri
+        // (Firebase Console > Project Settings > General > SDK setup and configuration)
+        const firebaseConfig = {
+            apiKey: "AIzaSyBoppmWcY4-JOeOiFqK84WVT-98KT5aG4A",
+            authDomain: "absen-gps-4e9d5.firebaseapp.com",
+            databaseURL: "https://absen-gps-4e9d5-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "absen-gps-4e9d5",
+            storageBucket: "absen-gps-4e9d5.firebasestorage.app",
+            messagingSenderId: "1077921700600",
+            appId: "1:1077921700600:web:744dfa81e9edc93463390d",
+            measurementId: "G-0H7PMK90HS"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        const koneksiStatusDiv = document.getElementById('koneksiStatus');
+        db.ref('.info/connected').on('value', function(snap) {
+            if (snap.val() === true) {
+                koneksiStatusDiv.textContent = 'Terhubung ke server';
+                koneksiStatusDiv.classList.remove('terputus');
+            } else {
+                koneksiStatusDiv.textContent = 'Terputus dari server (data tidak terkirim ke admin)';
+                koneksiStatusDiv.classList.add('terputus');
+            }
+        });
+
+        // ID unik per karyawan per perangkat, disimpan di localStorage supaya tetap sama walau reload
+        let employeeId = localStorage.getItem('absen_employee_id');
+        if (!employeeId) {
+            employeeId = 'emp_' + Math.random().toString(36).substring(2, 10);
+            localStorage.setItem('absen_employee_id', employeeId);
+        }
+        let namaKaryawan = localStorage.getItem('absen_nama') || '';
+        let employeeRef = null;
+        let waktuPushTerakhir = 0;
+        const JEDA_PUSH_MS = 2000; // throttle: kirim data ke Firebase maksimal tiap 2 detik, hemat kuota gratis
+
+        function mulaiSesi() {
+            const nilaiInput = document.getElementById('inputNama').value.trim();
+            if (!nilaiInput) {
+                alert('Nama tidak boleh kosong.');
+                return;
+            }
+            namaKaryawan = nilaiInput;
+            localStorage.setItem('absen_nama', namaKaryawan);
+            document.getElementById('namaOverlay').style.display = 'none';
+
+            employeeRef = db.ref('employees/' + employeeId);
+            // Kalau koneksi terputus mendadak (tab ditutup, sinyal hilang), tandai offline otomatis di server
+            employeeRef.onDisconnect().update({
+                status: 'offline',
+                terakhirTerlihat: firebase.database.ServerValue.TIMESTAMP
+            });
+
+            mulaiLiveTracking();
+        }
+
+        // Kirim posisi ke Firebase (dipanggil dari dalam watchPosition, sudah di-throttle)
+        function pushPosisiKeFirebase(lat, lng, akurasi, jarak, diDalamZona, sudahAbsen) {
+            if (!employeeRef) return;
+            const sekarang = Date.now();
+            if (sekarang - waktuPushTerakhir < JEDA_PUSH_MS) return;
+            waktuPushTerakhir = sekarang;
+
+            employeeRef.update({
+                nama: namaKaryawan,
+                lat: lat,
+                lng: lng,
+                akurasi: akurasi,
+                jarak: jarak,
+                diDalamZona: diDalamZona,
+                status: 'online',
+                sudahAbsen: !!sudahAbsen,
+                terakhirTerlihat: firebase.database.ServerValue.TIMESTAMP
+            });
+        }
+
         // === PENGATURAN LOKASI KANTOR/SEKOLAH ===
         // Ganti titik koordinat ini dengan lokasi target Anda (bisa cek di Google Maps)
-        const TARGET_LAT = -7.5051811; // Contoh Latitude
-        const TARGET_LNG = 110.2253946; // Contoh Longitude
+        const TARGET_LAT = -7.5051801; // Contoh Latitude
+        const TARGET_LNG = 110.2253764; // Contoh Longitude
         const MAX_RADIUS = 2; // Maksimal jarak dalam meter (radius validasi ABSEN, tetap ketat)
         const ZONE_RADIUS = 5; // Radius ZONA absen dalam meter (untuk notifikasi masuk/keluar)
         const MAX_AKURASI = 5; // Akurasi GPS maksimal yang diizinkan (meter) supaya tombol absen aktif
@@ -271,6 +403,7 @@
         let akurasiSekarang = null;
         let watchId = null;
         let sedangDiDalamZona = null; // null = status awal belum diketahui
+        let sudahAbsenHariIni = false;
 
         // Minta izin notifikasi browser (opsional, untuk notifikasi sistem selain banner di halaman)
         if ('Notification' in window && Notification.permission === 'default') {
@@ -456,6 +589,7 @@
                     }
 
                     perbaruiStatusTombol();
+                    pushPosisiKeFirebase(userLat, userLng, akurasiSekarang, jarak, diDalamZonaSekarang, sudahAbsenHariIni);
                 },
                 function(error) {
                     perbaruiStatusTombol();
@@ -476,8 +610,8 @@
                 },
                 {
                     enableHighAccuracy: true, // Memaksa penggunaan GPS asli, bukan sekadar WiFi/Network
-                    timeout: 1000,
-                    maximumAge: 1000
+                    timeout: 5000,
+                    maximumAge: 500
                 }
             );
         }
@@ -609,10 +743,19 @@
             const waktu = new Date().toLocaleString('id-ID');
             document.getElementById('infoHasil').innerHTML =
                 `Waktu: ${waktu}<br>Jarak dari titik absen: ${jarakSaatIni.toFixed(2)} meter<br>Koordinat: ${userLat.toFixed(6)}, ${userLng.toFixed(6)}`;
+
+            // Tandai selesai absen ke Firebase supaya admin langsung lihat statusnya berubah
+            sudahAbsenHariIni = true;
+            if (employeeRef) {
+                employeeRef.update({
+                    sudahAbsen: true,
+                    waktuAbsen: firebase.database.ServerValue.TIMESTAMP
+                });
+            }
         }
 
-        // Jalankan live tracking begitu halaman dimuat
-        mulaiLiveTracking();
+        // Catatan: live tracking TIDAK langsung jalan saat halaman dimuat.
+        // Baru dimulai setelah karyawan mengisi nama di overlay awal (lihat fungsi mulaiSesi()).
     </script>
 </body>
 </html>
