@@ -3,56 +3,206 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Absen GPS - Pop Up Notif</title>
+    <title>Absen GPS</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
         * { box-sizing: border-box; }
         body {
-            font-family: Arial, sans-serif; display: flex; justify-content: center;
-            align-items: center; min-height: 100vh; margin: 0; background-color: #f3f4f6; padding: 20px 0;
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background-color: #f3f4f6;
+            padding: 20px 0;
         }
         .card {
-            background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            text-align: center; max-width: 400px; width: 90%;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            text-align: center;
+            max-width: 400px;
+            width: 90%;
         }
-        h2 { margin-top: 0; color: #333; }
-        
-        /* Gaya CSS untuk Pop-Up melayang di atas */
-        #zonePopup {
-            position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
-            z-index: 10000; padding: 12px 24px; border-radius: 30px; font-size: 14px; font-weight: bold;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.2); transition: opacity 0.3s ease; display: none; width: max-content;
+        h2 {
+            margin-top: 0;
+            color: #333;
         }
-        #zonePopup.in-zone { background-color: #dcfce7; color: #16a34a; border: 1px solid #16a34a; }
-        #zonePopup.out-zone { background-color: #fee2e2; color: #dc2626; border: 1px solid #dc2626; }
-
-        #map { width: 100%; height: 250px; border-radius: 8px; margin-top: 12px; background: #e5e7eb; }
-        .legend { display: flex; justify-content: center; gap: 16px; font-size: 12px; color: #4b5563; margin-top: 8px; }
-        .legend span { display: inline-flex; align-items: center; gap: 4px; }
-        .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+        #map {
+            width: 100%;
+            height: 250px;
+            border-radius: 8px;
+            margin-top: 10px;
+            background: #e5e7eb;
+        }
+        .legend {
+            display: flex;
+            justify-content: center;
+            gap: 16px;
+            font-size: 12px;
+            color: #4b5563;
+            margin-top: 8px;
+        }
+        .legend span {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+        }
         .dot-target { background: #dc2626; }
         .dot-user { background: #2563eb; }
         button {
-            background-color: #2563eb; color: white; border: none; padding: 12px 20px;
-            border-radius: 5px; font-size: 16px; cursor: pointer; width: 100%; margin-top: 15px;
+            background-color: #2563eb;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 15px;
         }
-        button:active { background-color: #1d4ed8; }
-        button:disabled { background-color: #9ca3af; cursor: not-allowed; }
-        #status { margin-top: 15px; font-size: 14px; color: #4b5563; line-height: 1.5; }
-        #liveJarak { margin-top: 8px; font-size: 13px; color: #374151; }
+        button:active {
+            background-color: #1d4ed8;
+        }
+        button:disabled {
+            background-color: #9ca3af;
+            cursor: not-allowed;
+        }
+        button.secondary {
+            background-color: #6b7280;
+        }
+        button.secondary:active {
+            background-color: #4b5563;
+        }
+        .btn-row {
+            display: flex;
+            gap: 8px;
+        }
+        .btn-row button {
+            margin-top: 10px;
+        }
+        #status {
+            margin-top: 15px;
+            font-size: 14px;
+            color: #4b5563;
+            line-height: 1.5;
+        }
+        #liveJarak {
+            margin-top: 8px;
+            font-size: 13px;
+            color: #374151;
+        }
+        #akurasiInfo {
+            margin-top: 4px;
+            font-size: 12px;
+            color: #9ca3af;
+        }
+        #akurasiInfo.buruk {
+            color: #dc2626;
+            font-weight: bold;
+        }
+        #zoneNotif {
+            font-size: 13px;
+            font-weight: bold;
+            padding: 8px 10px;
+            border-radius: 6px;
+            display: none;
+            margin-bottom: 4px;
+        }
+        #zoneNotif.in-zone {
+            display: block;
+            background: #dcfce7;
+            color: #16a34a;
+        }
+        #zoneNotif.out-zone {
+            display: block;
+            background: #fee2e2;
+            color: #dc2626;
+        }
         .success { color: #16a34a !important; font-weight: bold; }
         .error { color: #dc2626 !important; font-weight: bold; }
+
+        /* Toast notifikasi (untuk peringatan saat memaksa klik absen) */
+        #toast {
+            position: fixed;
+            top: 16px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-30px);
+            background: #dc2626;
+            color: white;
+            padding: 10px 18px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: bold;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            opacity: 0;
+            transition: all 0.3s ease;
+            z-index: 2000;
+            pointer-events: none;
+            max-width: 320px;
+            text-align: center;
+        }
+        #toast.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        /* Tampilan kamera selfie */
+        #cameraView {
+            display: none;
+        }
+        #video {
+            width: 100%;
+            border-radius: 8px;
+            margin-top: 10px;
+            background: #000;
+            transform: scaleX(-1); /* efek cermin untuk kamera depan */
+        }
+        #canvasFoto {
+            display: none;
+        }
+        #previewFoto {
+            width: 100%;
+            border-radius: 8px;
+            margin-top: 10px;
+            display: none;
+            transform: scaleX(-1);
+        }
+        #cameraStatus {
+            margin-top: 10px;
+            font-size: 13px;
+            color: #4b5563;
+        }
+        #hasilAkhir {
+            display: none;
+        }
+        #hasilAkhir img {
+            width: 100%;
+            border-radius: 8px;
+            margin-top: 10px;
+            transform: scaleX(-1);
+        }
     </style>
 </head>
 <body>
 
-    <!-- Container Pop-Up (melayang) -->
-    <div id="zonePopup"></div>
+    <div id="toast"></div>
 
-    <div class="card">
+    <!-- ==== TAMPILAN UTAMA: PETA & TOMBOL ABSEN ==== -->
+    <div class="card" id="mainView">
         <h2>Absensi</h2>
         <p>Peta di bawah menampilkan posisi Anda secara live. Anda harus berada di radius maksimal 2 meter dari titik lokasi untuk bisa absen.</p>
+
+        <div id="zoneNotif"></div>
 
         <div id="map"></div>
         <div class="legend">
@@ -61,56 +211,143 @@
             <span><span class="dot" style="background:#f59e0b;opacity:0.5;"></span> Zona Absen</span>
         </div>
         <div id="liveJarak">Jarak: -</div>
+        <div id="akurasiInfo"></div>
 
         <button id="btnAbsen" onclick="prosesAbsen()" disabled>Mencari lokasi...</button>
 
         <div id="status">Status: Belum absen</div>
     </div>
 
+    <!-- ==== TAMPILAN KAMERA SELFIE ==== -->
+    <div class="card" id="cameraView">
+        <h2>Selfie Dokumentasi</h2>
+        <p>Ambil foto selfie untuk menyelesaikan absen. Anda harus tetap berada di zona absen saat mengambil foto.</p>
+
+        <video id="video" autoplay playsinline></video>
+        <canvas id="canvasFoto"></canvas>
+        <img id="previewFoto" />
+
+        <div id="cameraStatus"></div>
+
+        <div class="btn-row">
+            <button id="btnJepret" onclick="jepretFoto()">Ambil Foto</button>
+        </div>
+        <div class="btn-row" id="konfirmasiRow" style="display:none;">
+            <button class="secondary" onclick="ulangiFoto()">Ambil Ulang</button>
+            <button onclick="konfirmasiSelfie()">Gunakan Foto Ini</button>
+        </div>
+        <button class="secondary" onclick="batalkanKamera()">Batal</button>
+    </div>
+
+    <!-- ==== TAMPILAN HASIL AKHIR ==== -->
+    <div class="card" id="hasilAkhir">
+        <h2 class="success">Absen Berhasil!</h2>
+        <img id="fotoHasil" />
+        <div id="infoHasil" style="margin-top:10px;font-size:13px;color:#4b5563;"></div>
+    </div>
+
     <script>
-        const TARGET_LAT = -7.5051801; 
-        const TARGET_LNG = 110.2253764; 
-        const MAX_RADIUS = 2; 
-        const ZONE_RADIUS = 5; 
+        // === PENGATURAN LOKASI KANTOR/SEKOLAH ===
+        // Ganti titik koordinat ini dengan lokasi target Anda (bisa cek di Google Maps)
+        const TARGET_LAT = -7.5051801; // Contoh Latitude
+        const TARGET_LNG = 110.2253764; // Contoh Longitude
+        const MAX_RADIUS = 2; // Maksimal jarak dalam meter (radius validasi ABSEN, tetap ketat)
+        const ZONE_RADIUS = 5; // Radius ZONA absen dalam meter (untuk notifikasi masuk/keluar)
+        const MAX_AKURASI = 5; // Akurasi GPS maksimal yang diizinkan (meter) supaya tombol absen aktif
+
+        const mainView = document.getElementById('mainView');
+        const cameraView = document.getElementById('cameraView');
+        const hasilAkhir = document.getElementById('hasilAkhir');
 
         const statusDiv = document.getElementById('status');
         const liveJarakDiv = document.getElementById('liveJarak');
-        const zonePopup = document.getElementById('zonePopup');
+        const akurasiInfoDiv = document.getElementById('akurasiInfo');
+        const zoneNotifDiv = document.getElementById('zoneNotif');
         const btnAbsen = document.getElementById('btnAbsen');
+        const toastDiv = document.getElementById('toast');
 
-        let userLat = null; let userLng = null; let watchId = null; let sedangDiDalamZona = null; let popupTimeout = null;
+        let userLat = null;
+        let userLng = null;
+        let akurasiSekarang = null;
+        let watchId = null;
+        let sedangDiDalamZona = null; // null = status awal belum diketahui
 
-        // Fungsi memunculkan pop-up melayang
-        function tampilkanPopup(pesan, tipeClass) {
-            zonePopup.textContent = pesan;
-            zonePopup.className = tipeClass;
-            zonePopup.style.display = 'block';
-            
-            // Sembunyikan otomatis setelah 5 detik
-            clearTimeout(popupTimeout);
-            popupTimeout = setTimeout(() => {
-                zonePopup.style.display = 'none';
-            }, 5000);
-        }
-
+        // Minta izin notifikasi browser (opsional, untuk notifikasi sistem selain banner di halaman)
         if ('Notification' in window && Notification.permission === 'default') {
             Notification.requestPermission();
         }
 
+        function kirimNotifikasiSistem(judul, isi) {
+            if ('Notification' in window && Notification.permission === 'granted') {
+                new Notification(judul, { body: isi, icon: '' });
+            }
+        }
+
+        // Toast singkat untuk peringatan (misal: memaksa absen padahal di luar zona / akurasi buruk)
+        let toastTimeoutId = null;
+        function tampilkanToast(pesan) {
+            clearTimeout(toastTimeoutId);
+            toastDiv.textContent = pesan;
+            toastDiv.classList.add('show');
+            toastTimeoutId = setTimeout(() => {
+                toastDiv.classList.remove('show');
+            }, 3000);
+        }
+
+        // === SETUP PETA (Leaflet + OpenStreetMap, gratis tanpa API key) ===
         const map = L.map('map').setView([TARGET_LAT, TARGET_LNG], 18);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
 
-        const targetIcon = L.divIcon({ className: '', html: '<div style="width:16px;height:16px;background:#dc2626;border:2px solid white;border-radius:50%;box-shadow:0 0 4px rgba(0,0,0,0.4);"></div>', iconSize: [16, 16], iconAnchor: [8, 8] });
-        L.marker([TARGET_LAT, TARGET_LNG], { icon: targetIcon }).addTo(map).bindPopup('Titik Absen');
-        L.circle([TARGET_LAT, TARGET_LNG], { radius: MAX_RADIUS, color: '#dc2626', fillColor: '#dc2626', fillOpacity: 0.15, weight: 1 }).addTo(map);
-        L.circle([TARGET_LAT, TARGET_LNG], { radius: ZONE_RADIUS, color: '#f59e0b', fillColor: '#f59e0b', fillOpacity: 0.08, weight: 1, dashArray: '6, 6' }).addTo(map).bindPopup('Zona Absen (' + ZONE_RADIUS + 'm)');
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
 
-        const userIcon = L.divIcon({ className: '', html: '<div style="width:16px;height:16px;background:#2563eb;border:2px solid white;border-radius:50%;box-shadow:0 0 4px rgba(0,0,0,0.4);"></div>', iconSize: [16, 16], iconAnchor: [8, 8] });
-        let userMarker = null; let userAccCircle = null; let posSebelumnya = null; let animasiFrameId = null;
+        // Marker titik target (lokasi absen) - warna merah
+        const targetIcon = L.divIcon({
+            className: '',
+            html: '<div style="width:16px;height:16px;background:#dc2626;border:2px solid white;border-radius:50%;box-shadow:0 0 4px rgba(0,0,0,0.4);"></div>',
+            iconSize: [16, 16],
+            iconAnchor: [8, 8]
+        });
+        L.marker([TARGET_LAT, TARGET_LNG], { icon: targetIcon }).addTo(map)
+            .bindPopup('Titik Absen');
 
+        // Lingkaran radius target (radius asli 2m divisualisasikan)
+        L.circle([TARGET_LAT, TARGET_LNG], {
+            radius: MAX_RADIUS,
+            color: '#dc2626',
+            fillColor: '#dc2626',
+            fillOpacity: 0.15,
+            weight: 1
+        }).addTo(map);
+
+        // Lingkaran ZONA absen (radius lebih besar, untuk notifikasi masuk/keluar zona)
+        L.circle([TARGET_LAT, TARGET_LNG], {
+            radius: ZONE_RADIUS,
+            color: '#f59e0b',
+            fillColor: '#f59e0b',
+            fillOpacity: 0.08,
+            weight: 1,
+            dashArray: '6, 6'
+        }).addTo(map).bindPopup('Zona Absen (' + ZONE_RADIUS + 'm)');
+
+        // Marker posisi user - warna biru, dibuat setelah lokasi didapat
+        const userIcon = L.divIcon({
+            className: '',
+            html: '<div style="width:16px;height:16px;background:#2563eb;border:2px solid white;border-radius:50%;box-shadow:0 0 4px rgba(0,0,0,0.4);"></div>',
+            iconSize: [16, 16],
+            iconAnchor: [8, 8]
+        });
+        let userMarker = null;
+        let userAccCircle = null;
+        let posSebelumnya = null; // {lat, lng} untuk animasi interpolasi
+        let animasiFrameId = null;
+
+        // Animasi marker bergerak halus dari posisi lama ke posisi baru (bukan "loncat")
         function animasikanMarker(dariLat, dariLng, keLat, keLng, durasiMs) {
             if (animasiFrameId) cancelAnimationFrame(animasiFrameId);
             const mulai = performance.now();
+
             function frame(waktuSekarang) {
                 const progress = Math.min((waktuSekarang - mulai) / durasiMs, 1);
                 const eased = 1 - Math.pow(1 - progress, 2);
@@ -118,89 +355,263 @@
                 const lng = dariLng + (keLng - dariLng) * eased;
                 userMarker.setLatLng([lat, lng]);
                 if (userAccCircle) userAccCircle.setLatLng([lat, lng]);
-                if (progress < 1) animasiFrameId = requestAnimationFrame(frame);
+
+                if (progress < 1) {
+                    animasiFrameId = requestAnimationFrame(frame);
+                }
             }
             animasiFrameId = requestAnimationFrame(frame);
         }
 
+        // Fungsi untuk menghitung jarak antara 2 koordinat dalam satuan METER (Rumus Haversine)
         function hitungJarak(lat1, lon1, lat2, lon2) {
-            const R = 6371e3; const dLat = (lat2 - lat1) * Math.PI / 180; const dLon = (lon2 - lon1) * Math.PI / 180;
-            const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
-            return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
+            const R = 6371e3; // Radius bumi dalam meter
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLon/2) * Math.sin(dLon/2);
+
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c; // Hasil dalam meter
         }
 
+        // Cek apakah tombol absen boleh aktif (lokasi ada & akurasi cukup baik)
+        function perbaruiStatusTombol() {
+            if (userLat === null || userLng === null) {
+                btnAbsen.disabled = true;
+                btnAbsen.textContent = 'Mencari lokasi...';
+                return;
+            }
+            if (akurasiSekarang !== null && akurasiSekarang > MAX_AKURASI) {
+                btnAbsen.disabled = true;
+                btnAbsen.textContent = `Akurasi GPS kurang baik (${akurasiSekarang.toFixed(1)}m)`;
+                akurasiInfoDiv.classList.add('buruk');
+            } else {
+                btnAbsen.disabled = false;
+                btnAbsen.textContent = 'Absen Sekarang';
+                akurasiInfoDiv.classList.remove('buruk');
+            }
+        }
+
+        // Mulai pantau lokasi secara live (live tracking) begitu halaman dibuka
         function mulaiLiveTracking() {
             if (!navigator.geolocation) {
-                statusDiv.innerHTML = "<span class='error'>Error: Browser Anda tidak mendukung GPS.</span>"; return;
+                statusDiv.innerHTML = "<span class='error'>Error: Browser Anda tidak mendukung GPS.</span>";
+                return;
             }
 
             watchId = navigator.geolocation.watchPosition(
                 function(position) {
-                    userLat = position.coords.latitude; userLng = position.coords.longitude;
-                    const akurasi = position.coords.accuracy;
+                    userLat = position.coords.latitude;
+                    userLng = position.coords.longitude;
+                    akurasiSekarang = position.coords.accuracy;
 
+                    // Update / buat marker posisi user di peta
                     if (!userMarker) {
-                        userMarker = L.marker([userLat, userLng], { icon: userIcon }).addTo(map).bindPopup('Posisi Anda');
-                        userAccCircle = L.circle([userLat, userLng], { radius: akurasi, color: '#2563eb', fillColor: '#2563eb', fillOpacity: 0.08, weight: 1 }).addTo(map);
+                        userMarker = L.marker([userLat, userLng], { icon: userIcon }).addTo(map)
+                            .bindPopup('Posisi Anda');
+                        userAccCircle = L.circle([userLat, userLng], {
+                            radius: akurasiSekarang,
+                            color: '#2563eb',
+                            fillColor: '#2563eb',
+                            fillOpacity: 0.08,
+                            weight: 1
+                        }).addTo(map);
                         posSebelumnya = { lat: userLat, lng: userLng };
                         map.fitBounds([[TARGET_LAT, TARGET_LNG], [userLat, userLng]], { padding: [30, 30] });
                     } else {
                         animasikanMarker(posSebelumnya.lat, posSebelumnya.lng, userLat, userLng, 700);
-                        userAccCircle.setRadius(akurasi); posSebelumnya = { lat: userLat, lng: userLng };
+                        userAccCircle.setRadius(akurasiSekarang);
+                        posSebelumnya = { lat: userLat, lng: userLng };
                     }
 
                     const jarak = hitungJarak(TARGET_LAT, TARGET_LNG, userLat, userLng);
-                    liveJarakDiv.innerHTML = `Jarak Anda ke titik absen: <b>${jarak.toFixed(2)} meter</b> (akurasi GPS: ${akurasi.toFixed(1)}m)`;
+                    liveJarakDiv.innerHTML = `Jarak Anda ke titik absen: <b>${jarak.toFixed(2)} meter</b>`;
+                    akurasiInfoDiv.textContent = `Akurasi GPS saat ini: ${akurasiSekarang.toFixed(1)} meter${akurasiSekarang > MAX_AKURASI ? ' (terlalu rendah, tunggu sebentar / cari area terbuka)' : ''}`;
 
+                    // === CEK GEOFENCE (masuk / keluar zona absen) ===
                     const diDalamZonaSekarang = jarak <= ZONE_RADIUS;
-                    
+
                     if (sedangDiDalamZona === null) {
                         sedangDiDalamZona = diDalamZonaSekarang;
-                        // Menampilkan pop-up saat awal loading peta
-                        if (diDalamZonaSekarang) { tampilkanPopup('Kamu berada di dalam zona absen', 'in-zone'); } 
-                        else { tampilkanPopup('Kamu berada di luar zona absen', 'out-zone'); }
+                        if (diDalamZonaSekarang) {
+                            zoneNotifDiv.className = 'in-zone';
+                            zoneNotifDiv.textContent = 'Kamu berada di dalam zona absen';
+                        } else {
+                            zoneNotifDiv.className = 'out-zone';
+                            zoneNotifDiv.textContent = 'Kamu berada di luar zona absen';
+                        }
                     } else if (diDalamZonaSekarang && !sedangDiDalamZona) {
                         sedangDiDalamZona = true;
-                        tampilkanPopup('Kamu memasuki zona absen', 'in-zone');
+                        zoneNotifDiv.className = 'in-zone';
+                        zoneNotifDiv.textContent = 'Kamu berada di dalam zona absen';
+                        kirimNotifikasiSistem('Absen GPS', 'Kamu berada di dalam zona absen');
                     } else if (!diDalamZonaSekarang && sedangDiDalamZona) {
                         sedangDiDalamZona = false;
-                        tampilkanPopup('Kamu keluar dari zona absen', 'out-zone');
+                        zoneNotifDiv.className = 'out-zone';
+                        zoneNotifDiv.textContent = 'Kamu keluar dari zona absen';
+                        kirimNotifikasiSistem('Absen GPS', 'Kamu keluar dari zona absen');
                     }
 
-                    // VALIDASI AKURASI MAKSIMAL 5 METER
-                    if (akurasi > 5) {
-                        btnAbsen.disabled = true;
-                        btnAbsen.textContent = `Akurasi Rendah (${akurasi.toFixed(0)}m)`;
-                        statusDiv.innerHTML = `<span class='error'>Akurasi meleset! GPS Anda ${akurasi.toFixed(1)}m. Batas wajar maksimal 5m, harap cari area terbuka.</span>`;
-                    } else {
-                        btnAbsen.disabled = false;
-                        btnAbsen.textContent = 'Absen Sekarang';
-                        if (statusDiv.innerHTML.includes('Akurasi meleset')) statusDiv.innerHTML = "Status: Belum absen";
-                    }
+                    perbaruiStatusTombol();
                 },
                 function(error) {
-                    btnAbsen.textContent = 'Absen Sekarang'; btnAbsen.disabled = false;
-                    statusDiv.innerHTML = "<span class='error'>Lokasi gagal didapat. Pastikan GPS aktif.</span>";
+                    perbaruiStatusTombol();
+                    switch(error.code) {
+                        case error.PERMISSION_DENIED:
+                            statusDiv.innerHTML = "<span class='error'>Izin lokasi ditolak. Aktifkan GPS dan izinkan browser mengakses lokasi.</span>";
+                            break;
+                        case error.POSITION_UNAVAILABLE:
+                            statusDiv.innerHTML = "<span class='error'>Informasi lokasi tidak tersedia.</span>";
+                            break;
+                        case error.TIMEOUT:
+                            statusDiv.innerHTML = "<span class='error'>Waktu permintaan lokasi habis. Coba lagi.</span>";
+                            break;
+                        default:
+                            statusDiv.innerHTML = "<span class='error'>Terjadi kesalahan yang tidak diketahui.</span>";
+                            break;
+                    }
                 },
-                { enableHighAccuracy: true, timeout: 5000, maximumAge: 1000 }
+                {
+                    enableHighAccuracy: true, // Memaksa penggunaan GPS asli, bukan sekadar WiFi/Network
+                    timeout: 1000,
+                    maximumAge: 1000
+                }
             );
         }
 
+        // === PROSES ABSEN (dipanggil saat tombol "Absen Sekarang" diklik) ===
         function prosesAbsen() {
             if (userLat === null || userLng === null) {
-                statusDiv.innerHTML = "<span class='error'>Lokasi belum ditemukan, mohon tunggu sebentar.</span>"; return;
+                tampilkanToast('Lokasi belum ditemukan, mohon tunggu sebentar.');
+                return;
+            }
+
+            // Jaga-jaga: walau tombol harusnya sudah disabled, tetap dicek ulang di sini
+            if (akurasiSekarang !== null && akurasiSekarang > MAX_AKURASI) {
+                tampilkanToast(`Akurasi GPS masih terlalu rendah (${akurasiSekarang.toFixed(1)}m). Tunggu sebentar sebelum absen.`);
+                return;
             }
 
             const jarak = hitungJarak(TARGET_LAT, TARGET_LNG, userLat, userLng);
 
-            if (jarak <= MAX_RADIUS) {
-                statusDiv.innerHTML = `<span class='success'>Berhasil Absen!</span><br>Jarak Anda: ${jarak.toFixed(2)} meter.`;
-            } else {
-                // NOTIFIKASI JIKA MEMAKSA ABSEN DI LUAR ZONA
-                alert(`PERINGATAN!\nAnda memaksa absen di luar jangkauan zona.\n\nJarak Anda saat ini: ${jarak.toFixed(2)} meter.\nMaksimal yang diizinkan: ${MAX_RADIUS} meter.\n\nSilakan jalan mendekati titik absen.`);
+            if (jarak > MAX_RADIUS) {
+                // Orang memaksa klik absen padahal di luar zona/radius absen
+                tampilkanToast(`Kamu berada di luar zona absen (jarak ${jarak.toFixed(2)}m). Absen tidak bisa dilakukan.`);
                 statusDiv.innerHTML = `<span class='error'>Gagal Absen.</span><br>Jarak Anda ${jarak.toFixed(2)} meter dari target (Maks: ${MAX_RADIUS}m).`;
+                return;
+            }
+
+            // Lolos validasi lokasi -> lanjut ke tahap selfie
+            statusDiv.innerHTML = `<span class='success'>Lokasi terverifikasi!</span> Lanjut ke tahap selfie...`;
+            bukaKamera();
+        }
+
+        // === TAHAP KAMERA SELFIE ===
+        const video = document.getElementById('video');
+        const canvasFoto = document.getElementById('canvasFoto');
+        const previewFoto = document.getElementById('previewFoto');
+        const cameraStatus = document.getElementById('cameraStatus');
+        const btnJepret = document.getElementById('btnJepret');
+        const konfirmasiRow = document.getElementById('konfirmasiRow');
+
+        let streamKamera = null;
+        let fotoDataUrl = null;
+
+        function bukaKamera() {
+            mainView.style.display = 'none';
+            cameraView.style.display = 'block';
+            cameraStatus.textContent = 'Mengaktifkan kamera...';
+            video.style.display = 'block';
+            previewFoto.style.display = 'none';
+            btnJepret.style.display = 'block';
+            konfirmasiRow.style.display = 'none';
+
+            navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false })
+                .then(function(stream) {
+                    streamKamera = stream;
+                    video.srcObject = stream;
+                    cameraStatus.textContent = 'Posisikan wajah Anda, lalu ambil foto.';
+                })
+                .catch(function(err) {
+                    cameraStatus.innerHTML = "<span class='error'>Tidak bisa mengakses kamera. Pastikan izin kamera diaktifkan.</span>";
+                });
+        }
+
+        function tutupStreamKamera() {
+            if (streamKamera) {
+                streamKamera.getTracks().forEach(track => track.stop());
+                streamKamera = null;
             }
         }
+
+        function batalkanKamera() {
+            tutupStreamKamera();
+            cameraView.style.display = 'none';
+            mainView.style.display = 'block';
+            statusDiv.innerHTML = 'Status: Belum absen';
+        }
+
+        // Ambil foto - TAPI validasi lokasi dicek ulang dulu, harus masih di dalam zona absen (2m)
+        function jepretFoto() {
+            const jarakSaatIni = hitungJarak(TARGET_LAT, TARGET_LNG, userLat, userLng);
+
+            if (jarakSaatIni > MAX_RADIUS) {
+                tampilkanToast(`Kamu sudah keluar dari zona absen (jarak ${jarakSaatIni.toFixed(2)}m). Selfie dibatalkan.`);
+                cameraStatus.innerHTML = "<span class='error'>Kamu keluar dari zona absen. Kembali ke zona untuk melanjutkan.</span>";
+                return;
+            }
+
+            canvasFoto.width = video.videoWidth;
+            canvasFoto.height = video.videoHeight;
+            const ctx = canvasFoto.getContext('2d');
+            // Balik gambar secara horizontal supaya hasil foto tidak seperti cermin terbalik
+            ctx.translate(canvasFoto.width, 0);
+            ctx.scale(-1, 1);
+            ctx.drawImage(video, 0, 0, canvasFoto.width, canvasFoto.height);
+
+            fotoDataUrl = canvasFoto.toDataURL('image/jpeg', 0.9);
+            previewFoto.src = fotoDataUrl;
+
+            video.style.display = 'none';
+            previewFoto.style.display = 'block';
+            btnJepret.style.display = 'none';
+            konfirmasiRow.style.display = 'flex';
+            cameraStatus.textContent = 'Foto diambil. Cek hasilnya sebelum lanjut.';
+        }
+
+        function ulangiFoto() {
+            fotoDataUrl = null;
+            video.style.display = 'block';
+            previewFoto.style.display = 'none';
+            btnJepret.style.display = 'block';
+            konfirmasiRow.style.display = 'none';
+            cameraStatus.textContent = 'Posisikan wajah Anda, lalu ambil foto.';
+        }
+
+        // Konfirmasi akhir - validasi lokasi dicek SEKALI LAGI sebelum absen benar-benar disimpan
+        function konfirmasiSelfie() {
+            const jarakSaatIni = hitungJarak(TARGET_LAT, TARGET_LNG, userLat, userLng);
+
+            if (jarakSaatIni > MAX_RADIUS) {
+                tampilkanToast(`Kamu keluar dari zona absen (jarak ${jarakSaatIni.toFixed(2)}m) sebelum absen disimpan. Coba lagi.`);
+                ulangiFoto();
+                return;
+            }
+
+            tutupStreamKamera();
+            cameraView.style.display = 'none';
+            hasilAkhir.style.display = 'block';
+
+            document.getElementById('fotoHasil').src = fotoDataUrl;
+            const waktu = new Date().toLocaleString('id-ID');
+            document.getElementById('infoHasil').innerHTML =
+                `Waktu: ${waktu}<br>Jarak dari titik absen: ${jarakSaatIni.toFixed(2)} meter<br>Koordinat: ${userLat.toFixed(6)}, ${userLng.toFixed(6)}`;
+        }
+
+        // Jalankan live tracking begitu halaman dimuat
         mulaiLiveTracking();
     </script>
 </body>
