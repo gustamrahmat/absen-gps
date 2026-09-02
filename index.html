@@ -35,7 +35,6 @@
             width: 100%;
             height: 250px;
             border-radius: 8px;
-            margin-top: 12px;
             background: #e5e7eb;
         }
         .legend {
@@ -88,11 +87,13 @@
             font-size: 13px;
             color: #374151;
         }
+        /* --- CSS NOTIFIKASI DISESUAIKAN --- */
         #zoneNotif {
-            margin-top: 8px;
+            margin-top: 12px;
+            margin-bottom: 12px;
             font-size: 13px;
             font-weight: bold;
-            padding: 6px 10px;
+            padding: 8px 10px;
             border-radius: 6px;
             display: none;
         }
@@ -116,6 +117,9 @@
         <h2>Absensi</h2>
         <p>Peta di bawah menampilkan posisi Anda secara live. Anda harus berada di radius maksimal 2 meter dari titik lokasi untuk bisa absen.</p>
 
+        <!-- NOTIFIKASI DIPINDAH KE SINI (DI ATAS PETA) -->
+        <div id="zoneNotif"></div>
+
         <div id="map"></div>
         <div class="legend">
             <span><span class="dot dot-target"></span> Titik Absen</span>
@@ -123,7 +127,6 @@
             <span><span class="dot" style="background:#f59e0b;opacity:0.5;"></span> Zona Absen</span>
         </div>
         <div id="liveJarak">Jarak: -</div>
-        <div id="zoneNotif"></div>
 
         <button id="btnAbsen" onclick="prosesAbsen()" disabled>Mencari lokasi...</button>
 
@@ -132,11 +135,10 @@
 
     <script>
         // === PENGATURAN LOKASI KANTOR/SEKOLAH ===
-        // Ganti titik koordinat ini dengan lokasi target Anda (bisa cek di Google Maps)
-        const TARGET_LAT = -7.5051801; // Contoh Latitude
-        const TARGET_LNG = 110.2253764; // Contoh Longitude
-        const MAX_RADIUS = 2; // Maksimal jarak dalam meter (radius validasi ABSEN, tetap ketat)
-        const ZONE_RADIUS = 5; // Radius ZONA absen dalam meter (untuk notifikasi masuk/keluar, dibuat lebih longgar karena akurasi GPS HP rata-rata 5-15m)
+        const TARGET_LAT = -7.5051801; 
+        const TARGET_LNG = 110.2253764; 
+        const MAX_RADIUS = 2; 
+        const ZONE_RADIUS = 5; 
 
         const statusDiv = document.getElementById('status');
         const liveJarakDiv = document.getElementById('liveJarak');
@@ -146,9 +148,8 @@
         let userLat = null;
         let userLng = null;
         let watchId = null;
-        let sedangDiDalamZona = null; // null = status awal belum diketahui, true/false setelah lokasi pertama didapat
+        let sedangDiDalamZona = null; 
 
-        // Minta izin notifikasi browser (opsional, untuk notifikasi sistem selain banner di halaman)
         if ('Notification' in window && Notification.permission === 'default') {
             Notification.requestPermission();
         }
@@ -159,7 +160,7 @@
             }
         }
 
-        // === SETUP PETA (Leaflet + OpenStreetMap, gratis tanpa API key) ===
+        // === SETUP PETA ===
         const map = L.map('map').setView([TARGET_LAT, TARGET_LNG], 18);
 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -167,7 +168,6 @@
             attribution: '&copy; OpenStreetMap contributors'
         }).addTo(map);
 
-        // Marker titik target (lokasi absen) - warna merah
         const targetIcon = L.divIcon({
             className: '',
             html: '<div style="width:16px;height:16px;background:#dc2626;border:2px solid white;border-radius:50%;box-shadow:0 0 4px rgba(0,0,0,0.4);"></div>',
@@ -177,7 +177,6 @@
         L.marker([TARGET_LAT, TARGET_LNG], { icon: targetIcon }).addTo(map)
             .bindPopup('Titik Absen');
 
-        // Lingkaran radius target (radius asli 2m divisualisasikan)
         const radiusCircle = L.circle([TARGET_LAT, TARGET_LNG], {
             radius: MAX_RADIUS,
             color: '#dc2626',
@@ -186,7 +185,6 @@
             weight: 1
         }).addTo(map);
 
-        // Lingkaran ZONA absen (radius lebih besar, untuk notifikasi masuk/keluar zona)
         const zoneCircle = L.circle([TARGET_LAT, TARGET_LNG], {
             radius: ZONE_RADIUS,
             color: '#f59e0b',
@@ -196,7 +194,6 @@
             dashArray: '6, 6'
         }).addTo(map).bindPopup('Zona Absen (' + ZONE_RADIUS + 'm)');
 
-        // Marker posisi user - warna biru, dibuat setelah lokasi didapat
         const userIcon = L.divIcon({
             className: '',
             html: '<div style="width:16px;height:16px;background:#2563eb;border:2px solid white;border-radius:50%;box-shadow:0 0 4px rgba(0,0,0,0.4);"></div>',
@@ -205,18 +202,15 @@
         });
         let userMarker = null;
         let userAccCircle = null;
-        let posSebelumnya = null; // {lat, lng} untuk animasi interpolasi
+        let posSebelumnya = null; 
         let animasiFrameId = null;
 
-        // Animasi marker bergerak halus dari posisi lama ke posisi baru (bukan "loncat")
-        // Ini membuat pergerakan terlihat mulus di peta walau data GPS masuk tiap 1-3 detik sekali
         function animasikanMarker(dariLat, dariLng, keLat, keLng, durasiMs) {
             if (animasiFrameId) cancelAnimationFrame(animasiFrameId);
             const mulai = performance.now();
 
             function frame(waktuSekarang) {
                 const progress = Math.min((waktuSekarang - mulai) / durasiMs, 1);
-                // easing halus (ease-out) supaya tidak terasa kaku
                 const eased = 1 - Math.pow(1 - progress, 2);
                 const lat = dariLat + (keLat - dariLat) * eased;
                 const lng = dariLng + (keLng - dariLng) * eased;
@@ -230,9 +224,8 @@
             animasiFrameId = requestAnimationFrame(frame);
         }
 
-        // Fungsi untuk menghitung jarak antara 2 koordinat dalam satuan METER (Rumus Haversine)
         function hitungJarak(lat1, lon1, lat2, lon2) {
-            const R = 6371e3; // Radius bumi dalam meter
+            const R = 6371e3; 
             const dLat = (lat2 - lat1) * Math.PI / 180;
             const dLon = (lon2 - lon1) * Math.PI / 180;
 
@@ -241,10 +234,9 @@
                       Math.sin(dLon/2) * Math.sin(dLon/2);
 
             const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-            return R * c; // Hasil dalam meter
+            return R * c; 
         }
 
-        // Mulai pantau lokasi secara live (live tracking) begitu halaman dibuka
         function mulaiLiveTracking() {
             if (!navigator.geolocation) {
                 statusDiv.innerHTML = "<span class='error'>Error: Browser Anda tidak mendukung GPS.</span>";
@@ -257,7 +249,6 @@
                     userLng = position.coords.longitude;
                     const akurasi = position.coords.accuracy;
 
-                    // Update / buat marker posisi user di peta
                     if (!userMarker) {
                         userMarker = L.marker([userLat, userLng], { icon: userIcon }).addTo(map)
                             .bindPopup('Posisi Anda');
@@ -269,10 +260,8 @@
                             weight: 1
                         }).addTo(map);
                         posSebelumnya = { lat: userLat, lng: userLng };
-                        // Tampilkan kedua titik (target & user) dalam satu tampilan
                         map.fitBounds([[TARGET_LAT, TARGET_LNG], [userLat, userLng]], { padding: [30, 30] });
                     } else {
-                        // Gerakkan marker secara halus (interpolasi), bukan langsung loncat ke titik baru
                         animasikanMarker(posSebelumnya.lat, posSebelumnya.lng, userLat, userLng, 700);
                         userAccCircle.setRadius(akurasi);
                         posSebelumnya = { lat: userLat, lng: userLng };
@@ -281,11 +270,9 @@
                     const jarak = hitungJarak(TARGET_LAT, TARGET_LNG, userLat, userLng);
                     liveJarakDiv.innerHTML = `Jarak Anda ke titik absen: <b>${jarak.toFixed(2)} meter</b> (akurasi GPS: ${akurasi.toFixed(1)}m)`;
 
-                    // === CEK GEOFENCE (masuk / keluar zona absen) ===
                     const diDalamZonaSekarang = jarak <= ZONE_RADIUS;
 
                     if (sedangDiDalamZona === null) {
-                        // Status awal saat lokasi pertama kali didapat, langsung set tanpa notifikasi "perubahan"
                         sedangDiDalamZona = diDalamZonaSekarang;
                         if (diDalamZonaSekarang) {
                             zoneNotifDiv.className = 'in-zone';
@@ -295,13 +282,11 @@
                             zoneNotifDiv.textContent = 'Kamu berada di luar zona absen';
                         }
                     } else if (diDalamZonaSekarang && !sedangDiDalamZona) {
-                        // Baru saja MASUK zona
                         sedangDiDalamZona = true;
                         zoneNotifDiv.className = 'in-zone';
                         zoneNotifDiv.textContent = 'Kamu berada di dalam zona absen';
                         kirimNotifikasiSistem('Absen GPS', 'Kamu berada di dalam zona absen');
                     } else if (!diDalamZonaSekarang && sedangDiDalamZona) {
-                        // Baru saja KELUAR zona
                         sedangDiDalamZona = false;
                         zoneNotifDiv.className = 'out-zone';
                         zoneNotifDiv.textContent = 'Kamu keluar dari zona absen';
@@ -330,9 +315,9 @@
                     }
                 },
                 {
-                    enableHighAccuracy: true, // Memaksa penggunaan GPS asli, bukan sekadar WiFi/Network
-                    timeout: 5000,     // lebih cepat retry kalau ada fix baru yang telat
-                    maximumAge: 1000   // boleh pakai fix yang berumur maks 1 detik, biar terasa lebih responsif
+                    enableHighAccuracy: true, 
+                    timeout: 5000,     
+                    maximumAge: 1000   
                 }
             );
         }
@@ -342,9 +327,7 @@
                 statusDiv.innerHTML = "<span class='error'>Lokasi belum ditemukan, mohon tunggu sebentar.</span>";
                 return;
             }
-
             const jarak = hitungJarak(TARGET_LAT, TARGET_LNG, userLat, userLng);
-
             if (jarak <= MAX_RADIUS) {
                 statusDiv.innerHTML = `<span class='success'>Berhasil Absen!</span><br>Jarak Anda: ${jarak.toFixed(2)} meter.`;
             } else {
@@ -352,7 +335,6 @@
             }
         }
 
-        // Jalankan live tracking begitu halaman dimuat
         mulaiLiveTracking();
     </script>
 </body>
