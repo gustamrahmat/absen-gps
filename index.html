@@ -97,33 +97,48 @@
             pointer-events: none;
         }
 
-        /* Notifikasi popup, tampil DI ATAS panduan visual kotak scan */
-        #scanNotif {
-            position: absolute;
-            top: 14px;
-            left: 50%;
-            transform: translateX(-50%) translateY(-20px);
-            width: 88%;
-            padding: 10px 14px;
-            border-radius: 8px;
-            font-size: 13px;
-            font-weight: bold;
-            text-align: center;
-            opacity: 0;
-            transition: all 0.25s ease;
-            z-index: 50;
-            pointer-events: none;
-        }
-        #scanNotif.show { opacity: 1; transform: translateX(-50%) translateY(0); }
-        #scanNotif.proses { background: #fef3c7; color: #92400e; }
-        #scanNotif.berhasil { background: #dcfce7; color: #16a34a; }
-        #scanNotif.gagal { background: #fee2e2; color: #dc2626; }
-
         #scanStatus {
             margin-top: 10px;
             font-size: 13px;
             color: #6b7280;
         }
+        #liveJarakScan {
+            margin-top: 8px;
+            font-size: 13px;
+            color: #374151;
+        }
+        #akurasiInfoScan {
+            margin-top: 4px;
+            font-size: 12px;
+            color: #9ca3af;
+        }
+        #akurasiInfoScan.buruk {
+            color: #dc2626;
+            font-weight: bold;
+        }
+
+        /* Notifikasi banner biasa DI ATAS kamera scan (bukan lagi overlay di dalam kamera) */
+        #scanNotif {
+            font-size: 13px;
+            font-weight: bold;
+            text-align: center;
+            border-radius: 8px;
+            margin-bottom: 0;
+            padding: 0 10px;
+            max-height: 0;
+            opacity: 0;
+            overflow: hidden;
+            transition: all 0.25s ease;
+        }
+        #scanNotif.show {
+            padding: 10px;
+            max-height: 60px;
+            opacity: 1;
+            margin-bottom: 10px;
+        }
+        #scanNotif.proses { background: #fef3c7; color: #92400e; }
+        #scanNotif.berhasil { background: #dcfce7; color: #16a34a; }
+        #scanNotif.gagal { background: #fee2e2; color: #dc2626; }
 
         /* ==== TAHAP SELFIE (kamera depan) ==== */
         #video {
@@ -166,17 +181,21 @@
 
     <!-- ==== TAHAP 1: SCAN QR ==== -->
     <div class="card" id="scanView">
-        <h2>Absen QR</h2>
-        <p class="desc">Arahkan kamera ke QR Code. Lokasi Anda akan otomatis divalidasi saat QR terbaca.</p>
+        <h2>Absen QR + GPS</h2>
+        <p class="desc">Arahkan kamera ke QR Code di titik absen (mis. Pos Security). Lokasi Anda akan otomatis divalidasi saat QR terbaca.</p>
+
+        <div id="scanNotif"></div>
 
         <div id="scanContainer">
             <video id="videoScan" autoplay playsinline muted></video>
             <div id="guideBox"></div>
-            <div id="scanNotif"></div>
         </div>
         <canvas id="canvasScan"></canvas>
 
         <div id="scanStatus">Mengaktifkan kamera...</div>
+        <div id="liveJarakScan">Jarak ke titik absen: -</div>
+        <div id="akurasiInfoScan">Akurasi GPS: -</div>
+
         <div id="status">Status: Belum absen</div>
         <div id="koneksiStatus">Menghubungkan ke server...</div>
     </div>
@@ -184,7 +203,7 @@
     <!-- ==== TAHAP 2: DATA KARYAWAN ==== -->
     <div class="card" id="dataKaryawanView" style="display:none;">
         <h2>Data Karyawan</h2>
-        <p class="desc">Lokasi terverifikasi. Lengkapi data berikut.</p>
+        <p class="desc">Lokasi terverifikasi. Lengkapi data berikut sebelum lanjut ke selfie.</p>
 
         <input type="text" id="inputNamaKaryawan" placeholder="Nama lengkap" />
         <input type="text" id="inputNoKaryawan" placeholder="Nomor karyawan" />
@@ -219,7 +238,7 @@
         <img id="fotoHasil" />
         <div id="dataKaryawanHasil"></div>
         <div id="infoHasil" style="margin-top:10px;font-size:13px;color:#4b5563;"></div>
-        <button class="secondary" onclick="unduhFotoHasil()">Unduh Foto</button>
+        <button class="secondary" onclick="unduhFotoHasil()">Unduh Foto (Simpan Lokal)</button>
     </div>
 
     <script>
@@ -282,7 +301,8 @@
         const BATAS_TUNGGU_VALIDASI_MS = 6000; // maksimal menunggu akurasi membaik setelah QR terbaca
 
         const statusDiv = document.getElementById('status');
-        const toastDivDummy = null; // (tidak dipakai lagi, notifikasi zona lama sudah diganti scanNotif)
+        const liveJarakScanDiv = document.getElementById('liveJarakScan');
+        const akurasiInfoScanDiv = document.getElementById('akurasiInfoScan');
 
         let userLat = null;
         let userLng = null;
@@ -330,6 +350,9 @@
                     }
                     akurasiSekarang = bufferTerbaik.akurasi;
 
+                    akurasiInfoScanDiv.textContent = `Akurasi GPS: ${akurasiSekarang.toFixed(1)} meter${akurasiSekarang > MAX_AKURASI ? ' (kurang baik)' : ''}`;
+                    akurasiInfoScanDiv.classList.toggle('buruk', akurasiSekarang > MAX_AKURASI);
+
                     if (userLat === null) {
                         userLat = rawLat;
                         userLng = rawLng;
@@ -364,6 +387,7 @@
             scanningAktif = true;
             sedangMemprosesQR = false;
             scanStatusDiv.textContent = 'Mengaktifkan kamera...';
+            liveJarakScanDiv.textContent = 'Jarak ke titik absen: -';
 
             navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false })
                 .then(function(stream) {
@@ -438,6 +462,11 @@
             // tapi TIDAK menunggu tanpa batas -- kalau tetap buruk, tetap diputuskan (ditolak) setelah batas waktu.
             const mulaiTungguTs = Date.now();
             const intervalCek = setInterval(() => {
+                if (userLat !== null) {
+                    const jarakSementara = hitungJarak(dataLokasi.lat, dataLokasi.lng, userLat, userLng);
+                    liveJarakScanDiv.innerHTML = `Jarak ke titik absen: <b>${formatJarakCm(jarakSementara)}</b>`;
+                }
+
                 const akurasiCukup = userLat !== null && akurasiSekarang !== null && akurasiSekarang <= MAX_AKURASI;
                 const sudahLama = Date.now() - mulaiTungguTs > BATAS_TUNGGU_VALIDASI_MS;
 
