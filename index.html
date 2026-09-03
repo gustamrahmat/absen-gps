@@ -244,7 +244,7 @@
             <p>Masukkan nama Anda untuk memulai absensi.</p>
             <input type="text" id="inputNama" placeholder="Nama lengkap" />
             <button onclick="mulaiSesi()" style="margin-top:14px;">Mulai</button>
-            <p class="hint">Posisi Anda akan terlihat oleh admin secara live selama sesi ini berlangsung.</p>
+            <!--<p class="hint">Posisi Anda akan terlihat oleh admin secara live selama sesi ini berlangsung.</p>-->
         </div>
     </div>
 
@@ -253,7 +253,7 @@
     <!-- ==== TAMPILAN UTAMA: PETA & TOMBOL ABSEN ==== -->
     <div class="card" id="mainView">
         <h2>Absensi</h2>
-        <!--<p>Peta di bawah menampilkan posisi Anda secara live. Anda harus berada di radius maksimal 2 meter dari titik lokasi untuk bisa absen.</p>-->
+        <p>Peta di bawah menampilkan posisi Anda secara live. Anda harus berada di radius maksimal 2 meter dari titik lokasi untuk bisa absen.</p>
 
         <div id="zoneNotif"></div>
 
@@ -479,7 +479,7 @@
         let posSebelumnya = null; // {lat, lng} untuk animasi interpolasi
         let animasiFrameId = null;
         let waktuUpdateTerakhir = null; // untuk menyesuaikan durasi animasi dengan jeda update GPS asli
-        const SMOOTHING_ALPHA = 0.35; // 0-1, makin kecil makin halus tapi makin "lambat" mengikuti gerakan asli
+        const SMOOTHING_ALPHA = 0.4; // 0-1, makin kecil makin halus tapi makin "lambat" mengikuti gerakan asli
 
         // Animasi marker bergerak halus dari posisi lama ke posisi baru (bukan "loncat")
         function animasikanMarker(dariLat, dariLng, keLat, keLng, durasiMs) {
@@ -641,8 +641,8 @@
                 },
                 {
                     enableHighAccuracy: true, // Memaksa penggunaan GPS asli, bukan sekadar WiFi/Network
-                    timeout: 1000,
-                    maximumAge: 1000
+                    timeout: 3000,
+                    maximumAge: 700
                 }
             );
         }
