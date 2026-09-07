@@ -444,13 +444,13 @@
             try {
                 dataLokasi = JSON.parse(dataMentah);
             } catch (e) {
-                tampilkanNotifScan('gagal', 'QR tidak dikenali. Pastikan ini QR Absen resmi.');
+                tampilkanNotifScan('gagal', 'Gagal - QR tidak dikenali. Pastikan ini QR Absen resmi.');
                 setTimeout(() => { sembunyikanNotifScan(); sedangMemprosesQR = false; }, 2200);
                 return;
             }
 
             if (typeof dataLokasi.lat !== 'number' || typeof dataLokasi.lng !== 'number' || typeof dataLokasi.radius !== 'number') {
-                tampilkanNotifScan('gagal', 'QR tidak valid untuk absen.');
+                tampilkanNotifScan('gagal', 'Gagal - QR tidak valid untuk absen.');
                 setTimeout(() => { sembunyikanNotifScan(); sedangMemprosesQR = false; }, 2200);
                 return;
             }
@@ -494,7 +494,7 @@
 
             if (jarak > dataLokasi.radius) {
                 // Ini kasus utama antisipasi QR difoto & dikirim ke lokasi lain
-                tampilkanNotifScan('gagal', `Gagal - Anda di luar zona absen (jarak ${formatJarakCm(jarak)}), meski QR valid.`);
+                tampilkanNotifScan('gagal', `Gagal - Anda di luar zona absen (jarak ${formatJarakCm(jarak)}).`);
                 setTimeout(() => { sembunyikanNotifScan(); sedangMemprosesQR = false; scanStatusDiv.textContent = 'Arahkan kamera ke QR Code...'; }, 2600);
                 return;
             }
