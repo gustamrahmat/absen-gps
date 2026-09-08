@@ -179,8 +179,15 @@
 </head>
 <body>
 
+    <!-- ==== LAYAR AWAL: MINTA IZIN SECARA BERURUTAN ==== -->
+    <div class="card" id="startView">
+        <h2>Absen QR</h2>
+        <p class="desc">Aplikasi ini butuh izin Lokasi dan Kamera untuk berjalan. Tekan tombol di bawah untuk mulai.</p>
+        <button onclick="mulaiSemuaProses()">Mulai Absen</button>
+    </div>
+
     <!-- ==== TAHAP 1: SCAN QR ==== -->
-    <div class="card" id="scanView">
+    <div class="card" id="scanView" style="display:none;">
         <h2>Absen QR</h2>
         <p class="desc">Arahkan kamera ke QR Code di titik absen. Lokasi Anda akan otomatis divalidasi saat QR terbaca.</p>
 
@@ -203,7 +210,7 @@
     <!-- ==== TAHAP 2: DATA KARYAWAN ==== -->
     <div class="card" id="dataKaryawanView" style="display:none;">
         <h2>Data Karyawan</h2>
-        <p class="desc">Lokasi terverifikasi. Lengkapi data berikut sebelum lanjut ke selfie.</p>
+        <p class="desc">Lokasi terverifikasi. Lengkapi data berikut.</p>
 
         <input type="text" id="inputNamaKaryawan" placeholder="Nama lengkap" />
         <input type="text" id="inputNoKaryawan" placeholder="Nomor karyawan" />
@@ -444,7 +451,7 @@
             try {
                 dataLokasi = JSON.parse(dataMentah);
             } catch (e) {
-                tampilkanNotifScan('gagal', 'Gagal - QR tidak dikenali. Pastikan ini QR Absen resmi.');
+                tampilkanNotifScan('gagal', 'Gagal - QR tidak dikenali.');
                 setTimeout(() => { sembunyikanNotifScan(); sedangMemprosesQR = false; }, 2200);
                 return;
             }
@@ -479,7 +486,7 @@
 
         function finalisasiValidasiQR(dataLokasi, akurasiCukup) {
             if (userLat === null) {
-                tampilkanNotifScan('gagal', 'Lokasi GPS tidak ditemukan. Coba lagi.');
+                tampilkanNotifScan('gagal', 'Gagal - Lokasi GPS tidak ditemukan. Coba lagi.');
                 setTimeout(() => { sembunyikanNotifScan(); sedangMemprosesQR = false; scanStatusDiv.textContent = 'Arahkan kamera ke QR Code...'; }, 2200);
                 return;
             }
@@ -487,7 +494,7 @@
             const jarak = hitungJarak(dataLokasi.lat, dataLokasi.lng, userLat, userLng);
 
             if (!akurasiCukup) {
-                tampilkanNotifScan('gagal', `Akurasi GPS kurang baik (${akurasiSekarang.toFixed(1)}m). Coba lagi di tempat lebih terbuka.`);
+                tampilkanNotifScan('gagal', `Gagal - Akurasi GPS kurang baik (${akurasiSekarang.toFixed(1)}m). Coba lagi di tempat lebih terbuka.`);
                 setTimeout(() => { sembunyikanNotifScan(); sedangMemprosesQR = false; scanStatusDiv.textContent = 'Arahkan kamera ke QR Code...'; }, 2600);
                 return;
             }
@@ -658,9 +665,27 @@
             link.click();
         }
 
-        // === MULAI SEMUA PROSES SAAT HALAMAN DIBUKA ===
-        mulaiLiveTracking();
-        mulaiScanQR();
+        // === MULAI SEMUA PROSES: DIPICU TOMBOL, IZIN DIMINTA BERURUTAN ===
+        // Lokasi diminta dan ditunggu SELESAI dulu (baik berhasil maupun gagal),
+        // baru kamera diminta setelahnya -- supaya dua dialog izin tidak tabrakan di HP.
+        function mulaiSemuaProses() {
+            document.getElementById('startView').style.display = 'none';
+            document.getElementById('scanView').style.display = 'block';
+            scanStatusDiv.textContent = 'Meminta izin lokasi...';
+
+            navigator.geolocation.getCurrentPosition(
+                function() {
+                    mulaiLiveTracking();
+                    mulaiScanQR();
+                },
+                function(err) {
+                    console.warn('Izin lokasi bermasalah:', err.message);
+                    mulaiLiveTracking();
+                    mulaiScanQR();
+                },
+                { enableHighAccuracy: true, timeout: 8000 }
+            );
+        }
     </script>
 </body>
 </html>
