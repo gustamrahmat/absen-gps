@@ -9,120 +9,249 @@
     <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
     <!-- jsQR: decode QR code dari frame video, murni client-side -->
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --ink: #171B21;
+            --ink-soft: #5B6472;
+            --ink-faint: #9AA3AF;
+            --bg: #EEF1F5;
+            --surface: #FFFFFF;
+            --surface-dim: #F7F8FA;
+            --line: #E1E5EA;
+            --accent: #2D3FE0;
+            --accent-press: #212FB0;
+            --viewfinder: #0D1016;
+            --success: #1F8A5F;
+            --success-bg: #E4F6ED;
+            --warning: #B4790A;
+            --warning-bg: #FDF1DA;
+            --error: #C23B3B;
+            --error-bg: #FBEAEA;
+            --radius: 14px;
+        }
+
         * { box-sizing: border-box; }
+
         body {
-            font-family: Arial, sans-serif;
+            font-family: 'Inter', system-ui, sans-serif;
             display: flex;
             justify-content: center;
-            align-items: center;
+            align-items: flex-start;
             min-height: 100vh;
             margin: 0;
-            background-color: #f3f4f6;
-            padding: 20px 0;
+            background-color: var(--bg);
+            background-image: radial-gradient(circle at 50% 0%, #F5F7FA 0%, var(--bg) 55%);
+            padding: 32px 16px;
+            color: var(--ink);
         }
+
+        @keyframes cardIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
         .card {
-            background: white;
-            padding: 20px;
-            border-radius: 10px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            background: var(--surface);
+            padding: 22px;
+            border-radius: 20px;
+            border: 1px solid var(--line);
+            box-shadow: 0 1px 2px rgba(23,27,33,0.04), 0 14px 32px -12px rgba(23,27,33,0.12);
             text-align: center;
             max-width: 400px;
-            width: 90%;
+            width: 100%;
+            animation: cardIn 0.4s cubic-bezier(.2,.7,.3,1) both;
         }
-        h2 { margin-top: 0; color: #333; }
-        p.desc { font-size: 13px; color: #6b7280; }
+
+        h2 {
+            margin: 0 0 6px;
+            color: var(--ink);
+            font-family: 'Space Grotesk', sans-serif;
+            font-weight: 600;
+            font-size: 1.32rem;
+            letter-spacing: -0.01em;
+        }
+        p.desc {
+            font-size: 13.5px;
+            color: var(--ink-soft);
+            line-height: 1.55;
+            margin: 0;
+        }
 
         button {
-            background-color: #2563eb;
+            font-family: 'Space Grotesk', sans-serif;
+            background-color: var(--accent);
             color: white;
             border: none;
-            padding: 12px 20px;
-            border-radius: 5px;
-            font-size: 16px;
+            padding: 13px 20px;
+            border-radius: 11px;
+            font-size: 15.5px;
+            font-weight: 600;
             cursor: pointer;
             width: 100%;
-            margin-top: 15px;
+            margin-top: 14px;
+            transition: transform 0.12s ease, background-color 0.15s ease, opacity 0.15s ease;
         }
-        button:active { background-color: #1d4ed8; }
-        button:disabled { background-color: #9ca3af; cursor: not-allowed; }
-        button.secondary { background-color: #6b7280; }
-        button.secondary:active { background-color: #4b5563; }
+        button:active { background-color: var(--accent-press); transform: scale(0.98); }
+        button:disabled { background-color: var(--ink-faint); cursor: not-allowed; }
+        button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+        button.secondary {
+            background-color: transparent;
+            color: var(--ink-soft);
+            border: 1px solid var(--line);
+        }
+        button.secondary:active { background-color: var(--surface-dim); transform: scale(0.98); }
+
         .btn-row { display: flex; gap: 8px; }
         .btn-row button { margin-top: 10px; }
 
         input {
             width: 100%;
-            padding: 10px;
-            border: 1px solid #d1d5db;
-            border-radius: 6px;
+            padding: 12px 13px;
+            border: 1px solid var(--line);
+            border-radius: 11px;
             font-size: 15px;
+            font-family: 'Inter', sans-serif;
             margin-top: 10px;
             box-sizing: border-box;
+            background: var(--surface-dim);
+            transition: border-color 0.15s ease, background-color 0.15s ease;
+        }
+        input:focus {
+            outline: none;
+            border-color: var(--accent);
+            background: var(--surface);
         }
 
-        #status { margin-top: 15px; font-size: 14px; color: #4b5563; line-height: 1.5; }
-        .success { color: #16a34a !important; font-weight: bold; }
-        .error { color: #dc2626 !important; font-weight: bold; }
+        #status { margin-top: 14px; font-size: 13px; color: var(--ink-soft); line-height: 1.5; font-family: 'IBM Plex Mono', monospace; }
+        .success { color: var(--success) !important; font-weight: 600; }
+        .error { color: var(--error) !important; font-weight: 600; }
 
-        #koneksiStatus { font-size: 11px; margin-top: 10px; color: #9ca3af; }
-        #koneksiStatus.terputus { color: #dc2626; font-weight: bold; }
+        #koneksiStatus {
+            font-size: 10.5px;
+            margin-top: 10px;
+            color: var(--ink-faint);
+            font-family: 'IBM Plex Mono', monospace;
+        }
+        #koneksiStatus.terputus { color: var(--error); font-weight: 600; }
+
+        /* ==== HERO KECIL DI LAYAR AWAL: motif bracket yang sama dengan pemandu scan ==== */
+        .hero-scan {
+            position: relative;
+            width: 92px;
+            height: 92px;
+            margin: 4px auto 16px;
+        }
+        .hero-scan .corner {
+            position: absolute;
+            width: 26px;
+            height: 26px;
+            border: 3px solid var(--accent);
+            opacity: 0.9;
+        }
+        .hero-scan .corner-tl { top: 0; left: 0; border-right: none; border-bottom: none; border-top-left-radius: 8px; }
+        .hero-scan .corner-tr { top: 0; right: 0; border-left: none; border-bottom: none; border-top-right-radius: 8px; }
+        .hero-scan .corner-bl { bottom: 0; left: 0; border-right: none; border-top: none; border-bottom-left-radius: 8px; }
+        .hero-scan .corner-br { bottom: 0; right: 0; border-left: none; border-top: none; border-bottom-right-radius: 8px; }
+        .hero-scan .dot {
+            position: absolute;
+            top: 50%; left: 50%;
+            width: 8px; height: 8px;
+            background: var(--accent);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            animation: dotPulse 1.8s ease-in-out infinite;
+        }
+        @keyframes dotPulse {
+            0%, 100% { opacity: 0.4; transform: translate(-50%, -50%) scale(0.85); }
+            50% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+        }
 
         /* ==== AREA SCAN QR ==== */
         #scanContainer {
             position: relative;
             width: 100%;
-            margin-top: 10px;
-            border-radius: 8px;
+            margin-top: 12px;
+            border-radius: var(--radius);
             overflow: hidden;
-            background: #000;
+            background: var(--viewfinder);
+            aspect-ratio: 3 / 4;
         }
         #videoScan {
             width: 100%;
+            height: 100%;
+            object-fit: cover;
             display: block;
         }
         canvas#canvasScan { display: none; }
 
-        /* Panduan visual kotak scan di tengah, dengan area luar diredupkan */
+        /* Panduan visual: bracket sudut di tengah, area luar diredupkan */
         #guideBox {
             position: absolute;
             top: 50%;
             left: 50%;
-            width: 62%;
+            width: 64%;
             aspect-ratio: 1 / 1;
             transform: translate(-50%, -50%);
-            border: 3px solid rgba(255,255,255,0.85);
-            border-radius: 14px;
-            box-shadow: 0 0 0 9999px rgba(0,0,0,0.45);
+            border-radius: 18px;
+            box-shadow: 0 0 0 9999px rgba(6,8,12,0.55);
             pointer-events: none;
+        }
+        #guideBox .corner {
+            position: absolute;
+            width: 28px;
+            height: 28px;
+            border: 3px solid rgba(255,255,255,0.92);
+            animation: cornerBreathe 2.2s ease-in-out infinite;
+        }
+        #guideBox .corner-tl { top: -3px; left: -3px; border-right: none; border-bottom: none; border-top-left-radius: 10px; }
+        #guideBox .corner-tr { top: -3px; right: -3px; border-left: none; border-bottom: none; border-top-right-radius: 10px; animation-delay: 0.15s; }
+        #guideBox .corner-bl { bottom: -3px; left: -3px; border-right: none; border-top: none; border-bottom-left-radius: 10px; animation-delay: 0.3s; }
+        #guideBox .corner-br { bottom: -3px; right: -3px; border-left: none; border-top: none; border-bottom-right-radius: 10px; animation-delay: 0.45s; }
+        @keyframes cornerBreathe {
+            0%, 100% { opacity: 0.55; }
+            50% { opacity: 1; }
         }
 
         #scanStatus {
-            margin-top: 10px;
-            font-size: 13px;
-            color: #6b7280;
-        }
-        #liveJarakScan {
-            margin-top: 8px;
-            font-size: 13px;
-            color: #374151;
-        }
-        #akurasiInfoScan {
-            margin-top: 4px;
-            font-size: 12px;
-            color: #9ca3af;
-        }
-        #akurasiInfoScan.buruk {
-            color: #dc2626;
-            font-weight: bold;
+            margin-top: 12px;
+            font-size: 12.5px;
+            color: var(--ink-soft);
+            font-family: 'IBM Plex Mono', monospace;
         }
 
-        /* Notifikasi banner biasa DI ATAS kamera scan (bukan lagi overlay di dalam kamera) */
+        /* Panel pembacaan data: jarak & akurasi, gaya instrumen (dua kolom, monospace) */
+        .readout-row {
+            display: flex;
+            margin-top: 10px;
+            border: 1px solid var(--line);
+            border-radius: 11px;
+            overflow: hidden;
+            background: var(--surface-dim);
+        }
+        .readout-row > div {
+            flex: 1;
+            padding: 10px 12px;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 11.5px;
+            line-height: 1.4;
+            color: var(--ink-soft);
+            text-align: left;
+        }
+        .readout-row > div:first-child { border-right: 1px solid var(--line); }
+        .readout-row b { color: var(--ink); font-weight: 600; }
+        #akurasiInfoScan.buruk { color: var(--error); font-weight: 600; }
+
+        /* Notifikasi banner di atas kamera scan */
         #scanNotif {
+            font-family: 'Inter', sans-serif;
             font-size: 13px;
-            font-weight: bold;
+            font-weight: 600;
             text-align: center;
-            border-radius: 8px;
+            border-radius: 11px;
             margin-bottom: 0;
             padding: 0 10px;
             max-height: 0;
@@ -131,57 +260,78 @@
             transition: all 0.25s ease;
         }
         #scanNotif.show {
-            padding: 10px;
+            padding: 11px;
             max-height: 60px;
             opacity: 1;
-            margin-bottom: 10px;
+            margin-bottom: 12px;
         }
-        #scanNotif.proses { background: #fef3c7; color: #92400e; }
-        #scanNotif.berhasil { background: #dcfce7; color: #16a34a; }
-        #scanNotif.gagal { background: #fee2e2; color: #dc2626; }
+        #scanNotif.proses { background: var(--warning-bg); color: var(--warning); }
+        #scanNotif.berhasil { background: var(--success-bg); color: var(--success); }
+        #scanNotif.gagal { background: var(--error-bg); color: var(--error); }
 
         /* ==== TAHAP SELFIE (kamera depan) ==== */
         #video {
             width: 100%;
-            border-radius: 8px;
-            margin-top: 10px;
-            background: #000;
+            border-radius: var(--radius);
+            margin-top: 12px;
+            background: var(--viewfinder);
             transform: scaleX(-1);
         }
         #canvasFoto { display: none; }
         #previewFoto {
             width: 100%;
-            border-radius: 8px;
-            margin-top: 10px;
+            border-radius: var(--radius);
+            margin-top: 12px;
             display: none;
             transform: scaleX(-1);
         }
-        #cameraStatus { margin-top: 10px; font-size: 13px; color: #4b5563; }
+        #cameraStatus {
+            margin-top: 10px;
+            font-size: 12.5px;
+            color: var(--ink-soft);
+            font-family: 'IBM Plex Mono', monospace;
+        }
 
         /* ==== HASIL AKHIR ==== */
         #hasilAkhir { display: none; }
         #hasilAkhir img {
             width: 100%;
-            border-radius: 8px;
-            margin-top: 10px;
+            border-radius: var(--radius);
+            margin-top: 12px;
             transform: scaleX(-1);
         }
         #dataKaryawanHasil {
-            margin-top: 10px;
-            padding: 10px;
-            background: #f3f4f6;
-            border-radius: 8px;
+            margin-top: 12px;
+            padding: 12px 14px;
+            background: var(--surface-dim);
+            border: 1px solid var(--line);
+            border-radius: 11px;
             text-align: left;
-            font-size: 14px;
+            font-size: 13.5px;
+            font-family: 'IBM Plex Mono', monospace;
+            color: var(--ink-soft);
+            line-height: 1.6;
         }
-        #dataKaryawanHasil b { color: #111827; }
+        #dataKaryawanHasil b { color: var(--ink); }
+        #infoHasil {
+            font-family: 'IBM Plex Mono', monospace;
+            color: var(--ink-soft) !important;
+            line-height: 1.6;
+        }
     </style>
 </head>
 <body>
 
     <!-- ==== LAYAR AWAL: MINTA IZIN SECARA BERURUTAN ==== -->
     <div class="card" id="startView">
-        <h2>Absen QR</h2>
+        <div class="hero-scan">
+            <span class="corner corner-tl"></span>
+            <span class="corner corner-tr"></span>
+            <span class="corner corner-bl"></span>
+            <span class="corner corner-br"></span>
+            <span class="dot"></span>
+        </div>
+        <h2>Absensi</h2>
         <p class="desc">Aplikasi ini butuh izin Lokasi dan Kamera untuk berjalan. Tekan tombol di bawah untuk mulai.</p>
         <button onclick="mulaiSemuaProses()">Mulai Absen</button>
     </div>
@@ -195,13 +345,21 @@
 
         <div id="scanContainer">
             <video id="videoScan" autoplay playsinline muted></video>
-            <div id="guideBox"></div>
+            <div id="guideBox">
+                <span class="corner corner-tl"></span>
+                <span class="corner corner-tr"></span>
+                <span class="corner corner-bl"></span>
+                <span class="corner corner-br"></span>
+            </div>
         </div>
         <canvas id="canvasScan"></canvas>
 
         <div id="scanStatus">Mengaktifkan kamera...</div>
-        <div id="liveJarakScan">Jarak ke titik absen: -</div>
-        <div id="akurasiInfoScan">Akurasi GPS: -</div>
+
+        <div class="readout-row">
+            <div id="liveJarakScan">Jarak ke titik absen: -</div>
+            <div id="akurasiInfoScan">Akurasi GPS: -</div>
+        </div>
 
         <div id="status">Status: Belum absen</div>
         <div id="koneksiStatus">Menghubungkan ke server...</div>
@@ -210,7 +368,7 @@
     <!-- ==== TAHAP 2: DATA KARYAWAN ==== -->
     <div class="card" id="dataKaryawanView" style="display:none;">
         <h2>Data Karyawan</h2>
-        <p class="desc">Lokasi terverifikasi. Lengkapi data berikut.</p>
+        <p class="desc">Lokasi terverifikasi. Lengkapi data berikut sebelum lanjut.</p>
 
         <input type="text" id="inputNamaKaryawan" placeholder="Nama lengkap" />
         <input type="text" id="inputNoKaryawan" placeholder="Nomor karyawan" />
@@ -248,7 +406,7 @@
         <button class="secondary" onclick="unduhFotoHasil()">Unduh Foto</button>
     </div>
 
-    <script>
+<script>
         // === KONFIGURASI FIREBASE ===
         const firebaseConfig = {
             apiKey: "AIzaSyBoppmWcY4-JOeOiFqK84WVT-98KT5aG4A",
@@ -451,7 +609,7 @@
             try {
                 dataLokasi = JSON.parse(dataMentah);
             } catch (e) {
-                tampilkanNotifScan('gagal', 'Gagal - QR tidak dikenali.');
+                tampilkanNotifScan('gagal', 'Gagal - QR tidak dikenali. Pastikan ini QR Absen asli.');
                 setTimeout(() => { sembunyikanNotifScan(); sedangMemprosesQR = false; }, 2200);
                 return;
             }
